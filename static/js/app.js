@@ -13,6 +13,9 @@ class NovaFlixApp {
         this.progressTimer = null;
         this.libraries = [];
         this.currentLibraryFilter = null;
+        this.currentMediaTypeFilter = 'all';
+        this.libraryViewMode = 'grid';
+        this.activeLibraryItems = [];
         this.showsList = [];
 
         this.initElements();
@@ -125,10 +128,15 @@ class NovaFlixApp {
         if (btnLibraries) {
             btnLibraries.addEventListener('click', () => this.openAddMediaModal('scan'));
         }
+
+        // Browser History navigation (Back/Forward buttons)
+        window.addEventListener('popstate', () => {
+            this.handleRouteState();
+        });
     }
 
     // -------------------------------------------------------------
-    // Catalog Loading & Rendering
+    // Catalog Loading & Routing & Rendering
     // -------------------------------------------------------------
 
     async loadCatalog() {
@@ -145,11 +153,97 @@ class NovaFlixApp {
 
             this.renderFeatured(featuredRes);
             this.renderContinueWatching(continueRes);
+
+            // Determine initial filter from URL path or hash
+            const path = window.location.pathname.toLowerCase();
+            const hash = window.location.hash.toLowerCase();
+
+            if (path === '/movies' || hash === '#movies' || hash === '#shelfmovies') {
+                this.currentMediaTypeFilter = 'movies';
+                const movieLib = this.libraries.find(l => l.type === 'movies');
+                this.currentLibraryFilter = movieLib ? movieLib.id : null;
+            } else if (path === '/shows' || hash === '#shows' || hash === '#shelfshows') {
+                this.currentMediaTypeFilter = 'shows';
+                const showLib = this.libraries.find(l => l.type === 'tvshows');
+                this.currentLibraryFilter = showLib ? showLib.id : null;
+            } else {
+                this.currentMediaTypeFilter = 'all';
+                this.currentLibraryFilter = null;
+            }
+
+            this.syncNavActive();
             this.renderLibraryPills();
             await this.renderDynamicShelves();
+
+            if (hash.startsWith('#media-')) {
+                const id = parseInt(hash.replace('#media-', ''));
+                if (id) this.openDetailModal(id);
+            }
         } catch (e) {
             console.error('Failed to load catalog', e);
         }
+    }
+
+    handleRouteState() {
+        const path = window.location.pathname.toLowerCase();
+        const hash = window.location.hash.toLowerCase();
+
+        if (path === '/movies' || hash === '#movies' || hash === '#shelfmovies') {
+            this.filterByMediaType('movies', false);
+        } else if (path === '/shows' || hash === '#shows' || hash === '#shelfshows') {
+            this.filterByMediaType('shows', false);
+        } else if (hash.startsWith('#media-')) {
+            const id = parseInt(hash.replace('#media-', ''));
+            if (id) this.openDetailModal(id);
+        } else {
+            this.filterByMediaType('all', false);
+        }
+    }
+
+    filterByMediaType(type, pushState = true) {
+        this.currentMediaTypeFilter = type;
+
+        if (type === 'movies') {
+            const movieLib = this.libraries.find(l => l.type === 'movies');
+            this.currentLibraryFilter = movieLib ? movieLib.id : null;
+            if (pushState && window.history.pushState) {
+                window.history.pushState(null, '', '/movies');
+            }
+        } else if (type === 'shows') {
+            const showLib = this.libraries.find(l => l.type === 'tvshows');
+            this.currentLibraryFilter = showLib ? showLib.id : null;
+            if (pushState && window.history.pushState) {
+                window.history.pushState(null, '', '/shows');
+            }
+        } else {
+            this.currentLibraryFilter = null;
+            if (pushState && window.history.pushState) {
+                window.history.pushState(null, '', '/');
+            }
+        }
+
+        this.syncNavActive();
+        this.renderLibraryPills();
+        this.renderDynamicShelves();
+
+        // Smooth scroll
+        if (type !== 'all') {
+            const target = document.querySelector('.cinema-main-container');
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }
+
+    syncNavActive() {
+        const navHome = document.getElementById('navLinkHome');
+        const navMovies = document.getElementById('navLinkMovies');
+        const navShows = document.getElementById('navLinkShows');
+        if (navHome) navHome.classList.toggle('active', this.currentMediaTypeFilter === 'all');
+        if (navMovies) navMovies.classList.toggle('active', this.currentMediaTypeFilter === 'movies');
+        if (navShows) navShows.classList.toggle('active', this.currentMediaTypeFilter === 'shows');
     }
 
     renderLibraryPills() {
@@ -177,6 +271,19 @@ class NovaFlixApp {
 
     async filterByLibrary(libId) {
         this.currentLibraryFilter = libId;
+        if (libId === null) {
+            this.currentMediaTypeFilter = 'all';
+            if (window.history.pushState) window.history.pushState(null, '', '/');
+        } else {
+            const lib = this.libraries.find(l => l.id === libId);
+            if (lib) {
+                this.currentMediaTypeFilter = lib.type === 'movies' ? 'movies' : 'shows';
+                if (window.history.pushState) {
+                    window.history.pushState(null, '', lib.type === 'movies' ? '/movies' : '/shows');
+                }
+            }
+        }
+        this.syncNavActive();
         this.renderLibraryPills();
         await this.renderDynamicShelves();
     }
@@ -193,23 +300,27 @@ class NovaFlixApp {
                 return this.renderDynamicShelves();
             }
 
-            container.innerHTML = `<div style="color: var(--text-muted); padding: 24px;">Loading ${lib.name}...</div>`;
-            const items = await fetch(`/api/libraries/${lib.id}/items`).then(r => r.json());
-
             const isMovie = lib.type === 'movies';
             const iconSvg = isMovie
                 ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--violet-primary)" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>'
                 : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--cyan-accent)" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>';
 
             container.innerHTML = `
-                <section class="media-shelf">
-                    <div class="shelf-header">
+                <section class="media-shelf" id="${isMovie ? 'shelfMovies' : 'shelfShows'}">
+                    <div class="shelf-header" style="flex-wrap: wrap; gap: 12px;">
                         <h2 class="shelf-title">
                             ${iconSvg}
                             <span>${lib.name}</span>
                             <span class="rating-badge" style="font-size: 0.72rem; margin-left: 8px;">${lib.item_count} ITEMS</span>
                         </h2>
-                        <div style="display: flex; gap: 8px;">
+                        <div style="display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap;">
+                            <div class="search-box-wrap" style="width: 200px; height: 36px;">
+                                <svg class="search-icon-nav" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                <input type="text" id="libSearchInput" class="nav-search-input" placeholder="Search ${lib.name}..." oninput="app.filterLibraryView(this.value)">
+                            </div>
+                            <button class="shelf-action-btn" onclick="app.toggleLibraryViewMode()">
+                                ${this.libraryViewMode === 'grid' ? '☰ Horizontal View' : '⊞ Grid View'}
+                            </button>
                             <button class="shelf-action-btn" onclick="app.openAddMediaModal('single', ${lib.id})">
                                 + Add Media
                             </button>
@@ -218,29 +329,56 @@ class NovaFlixApp {
                             </button>
                         </div>
                     </div>
-                    <div class="shelf-carousel">
-                        ${items && items.length > 0 ? items.map(m => this.createMediaCard(m)).join('') : '<div style="color: var(--text-muted); padding: 24px;">No items in this library yet. Click "+ Add Media" above to add some!</div>'}
+                    <div class="${this.libraryViewMode === 'grid' ? 'media-grid-container' : 'shelf-carousel'}" id="libraryActiveContainer">
+                        <div style="color: var(--text-muted); padding: 24px;">Loading ${lib.name}...</div>
                     </div>
                 </section>
             `;
+
+            try {
+                const items = await fetch(`/api/libraries/${lib.id}/items?limit=100`).then(r => r.json());
+                this.activeLibraryItems = items || [];
+                const activeEl = document.getElementById('libraryActiveContainer');
+                if (activeEl) {
+                    if (items && items.length > 0) {
+                        activeEl.innerHTML = items.map(m => this.createMediaCard(m)).join('');
+                    } else {
+                        activeEl.innerHTML = '<div style="color: var(--text-muted); padding: 30px;">No items in this library yet. Click "+ Add Media" above to add some!</div>';
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching library items:', err);
+            }
             return;
         }
 
-        // Otherwise render all libraries
+        // Otherwise render all libraries (Home view)
         if (!this.libraries || this.libraries.length === 0) {
             container.innerHTML = '<div style="color: var(--text-muted); padding: 30px;">No libraries found. Click "+ New Library" above to add one.</div>';
             return;
         }
 
         let shelvesHtml = '';
+        let movieAssigned = false;
+        let showAssigned = false;
+
         for (const lib of this.libraries) {
             const isMovie = lib.type === 'movies';
             const iconSvg = isMovie
                 ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--violet-primary)" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>'
                 : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--cyan-accent)" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>';
 
+            let shelfId = `shelf-lib-${lib.id}`;
+            if (isMovie && !movieAssigned) {
+                shelfId = 'shelfMovies';
+                movieAssigned = true;
+            } else if (!isMovie && !showAssigned) {
+                shelfId = 'shelfShows';
+                showAssigned = true;
+            }
+
             shelvesHtml += `
-                <section class="media-shelf" id="shelf-lib-${lib.id}">
+                <section class="media-shelf" id="${shelfId}">
                     <div class="shelf-header">
                         <h2 class="shelf-title">
                             ${iconSvg}
@@ -248,6 +386,9 @@ class NovaFlixApp {
                             <span class="rating-badge" style="font-size: 0.72rem; margin-left: 8px;">${lib.item_count} ITEMS</span>
                         </h2>
                         <div style="display: flex; gap: 8px;">
+                            <button class="shelf-action-btn" onclick="app.filterByLibrary(${lib.id})">
+                                View All →
+                            </button>
                             <button class="shelf-action-btn" onclick="app.openAddMediaModal('single', ${lib.id})">
                                 + Add
                             </button>
@@ -279,6 +420,24 @@ class NovaFlixApp {
         }
     }
 
+    toggleLibraryViewMode() {
+        this.libraryViewMode = this.libraryViewMode === 'grid' ? 'carousel' : 'grid';
+        this.renderDynamicShelves();
+    }
+
+    filterLibraryView(term) {
+        const clean = (term || '').toLowerCase().trim();
+        const container = document.getElementById('libraryActiveContainer');
+        if (!container || !this.activeLibraryItems) return;
+        const filtered = clean
+            ? this.activeLibraryItems.filter(i => (i.title || '').toLowerCase().includes(clean))
+            : this.activeLibraryItems;
+        if (filtered.length > 0) {
+            container.innerHTML = filtered.map(m => this.createMediaCard(m)).join('');
+        } else {
+            container.innerHTML = `<div style="color: var(--text-muted); padding: 30px;">No items match "${clean}".</div>`;
+        }
+    }
 
     renderFeatured(item) {
         if (!item || !item.id) return;
@@ -290,6 +449,7 @@ class NovaFlixApp {
         const heroDuration = document.getElementById('heroDuration');
         const heroGenre = document.getElementById('heroGenre');
         const btnPlay = document.getElementById('btnHeroPlay');
+        const btnMoreInfo = document.getElementById('btnHeroMoreInfo');
 
         if (heroBackdrop) heroBackdrop.style.backgroundImage = `url('${item.backdrop || item.poster}')`;
         if (heroTitle) heroTitle.innerText = item.title;
@@ -301,6 +461,9 @@ class NovaFlixApp {
 
         if (btnPlay) {
             btnPlay.onclick = () => this.playMedia(item);
+        }
+        if (btnMoreInfo) {
+            btnMoreInfo.onclick = () => this.openDetailModal(item.id);
         }
     }
 
@@ -316,11 +479,14 @@ class NovaFlixApp {
 
         shelf.style.display = 'block';
         container.innerHTML = items.map(m => {
-            const percent = Math.min(100, Math.round((m.position_seconds / max(1, m.total_seconds)) * 100));
+            const totalSec = Math.max(1, m.duration_seconds || m.total_seconds || 1);
+            const posSec = m.position_seconds || 0;
+            const percent = Math.min(100, Math.round((posSec / totalSec) * 100));
+            const leftMin = Math.max(1, Math.round((totalSec - posSec) / 60));
             return `
-                <div class="media-card" onclick="app.playMediaById(${m.id})">
+                <a href="#play-${m.id}" class="media-card" onclick="event.preventDefault(); app.playMediaById(${m.id});" title="${m.title}">
                     <div class="media-poster-wrap">
-                        <img src="${m.backdrop || m.poster}" class="media-poster-img" alt="${m.title}">
+                        <img src="${m.backdrop || m.poster || '/api/media/poster/generated?title=' + encodeURIComponent(m.title)}" class="media-poster-img" alt="${m.title}">
                         <div class="media-overlay-play">
                             <div class="play-circle-btn">
                                 <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -334,10 +500,10 @@ class NovaFlixApp {
                         <div class="media-card-title">${m.title}</div>
                         <div class="media-card-sub">
                             <span>Resume</span>
-                            <span>${Math.round(m.position_seconds / 60)}m left</span>
+                            <span>${leftMin}m left</span>
                         </div>
                     </div>
-                </div>
+                </a>
             `;
         }).join('');
     }
@@ -355,24 +521,28 @@ class NovaFlixApp {
     }
 
     createMediaCard(m) {
+        const isShow = m.type === 'show';
+        const sub = isShow ? `${m.year || 2026} • TV Series` : `${m.year || 2026} • Movie`;
+        const posterUrl = m.poster || `/api/media/poster/generated?title=${encodeURIComponent(m.title)}&genre=${encodeURIComponent(m.genre || 'Cinema')}`;
         return `
-            <div class="media-card" onclick="app.openDetailModal(${m.id})">
+            <a href="#media-${m.id}" class="media-card" onclick="event.preventDefault(); app.openDetailModal(${m.id});" title="${m.title}">
                 <div class="media-poster-wrap">
-                    <img src="${m.poster}" class="media-poster-img" alt="${m.title}" loading="lazy">
+                    <img src="${posterUrl}" class="media-poster-img" alt="${m.title}" loading="lazy" onerror="this.onerror=null; this.src='/api/media/poster/generated?title=${encodeURIComponent(m.title)}';">
                     <div class="media-overlay-play">
                         <div class="play-circle-btn">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                         </div>
                     </div>
+                    ${isShow ? '<span class="quality-badge" style="position: absolute; top: 10px; right: 10px; z-index: 2; font-size: 0.65rem; background: rgba(6, 182, 212, 0.85); border-color: rgba(6, 182, 212, 0.4); color: #ffffff;">TV SHOW</span>' : ''}
                 </div>
                 <div class="media-card-info">
                     <div class="media-card-title">${m.title}</div>
                     <div class="media-card-sub">
-                        <span>${m.year || 2025}</span>
+                        <span>${sub}</span>
                         <span style="color: var(--amber-gold); font-weight: 700;">★ ${m.rating || 8.5}</span>
                     </div>
                 </div>
-            </div>
+            </a>
         `;
     }
 
@@ -413,6 +583,8 @@ class NovaFlixApp {
                     this.closeDetailModal();
                     if (item.type === 'show' && item.episodes && item.episodes.length > 0) {
                         this.playMedia(item.episodes[0]);
+                    } else if (item.type === 'show') {
+                        this.showToast('No episodes added to this show yet. Use the form below to add one!', 'info');
                     } else {
                         this.playMedia(item);
                     }
@@ -471,6 +643,9 @@ class NovaFlixApp {
             }
 
             modal.classList.add('active');
+            if (window.history.pushState) {
+                window.history.pushState(null, '', '#media-' + itemId);
+            }
         } catch (e) {
             console.error('Failed to open detail modal', e);
         }
@@ -479,6 +654,9 @@ class NovaFlixApp {
     closeDetailModal() {
         const modal = document.getElementById('mediaDetailModal');
         if (modal) modal.classList.remove('active');
+        if (window.location.hash.startsWith('#media-') && window.history.pushState) {
+            window.history.pushState(null, '', window.location.pathname);
+        }
     }
 
     toggleDetailAddEpisodeForm(open = null) {

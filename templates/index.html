@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NovaFlix | Next-Gen Sovereign Media Server</title>
     <meta name="description" content="The next-generation open media streaming platform combining the elegance of Plex, freedom of Jellyfin, and power of Emby.">
-    <link rel="stylesheet" href="/static/css/style.css?v=1.1.0">
+    <link rel="stylesheet" href="/static/css/style.css?v=1.2.1">
 
 </head>
 <body>
@@ -21,13 +21,13 @@
         </a>
 
         <ul class="nav-menu">
-            <li><a class="nav-link active" onclick="location.reload()">Home</a></li>
-            <li><a class="nav-link" href="#shelfMovies">Movies</a></li>
-            <li><a class="nav-link" href="#shelfShows">TV Shows</a></li>
+            <li><a class="nav-link active" id="navLinkHome" href="/" onclick="event.preventDefault(); app.filterByMediaType('all');" style="cursor: pointer;">Home</a></li>
+            <li><a class="nav-link" id="navLinkMovies" href="/movies" onclick="event.preventDefault(); app.filterByMediaType('movies');" style="cursor: pointer;">Movies</a></li>
+            <li><a class="nav-link" id="navLinkShows" href="/shows" onclick="event.preventDefault(); app.filterByMediaType('shows');" style="cursor: pointer;">TV Shows</a></li>
             <li><a class="nav-link" id="btnNavAddMedia" style="color: var(--amber-gold); font-weight: 700; cursor: pointer;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -2px; margin-right: 4px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>Add Media</a></li>
             <li><a class="nav-link" id="btnNavLibraries" style="cursor: pointer;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>Libraries</a></li>
             <li><a class="nav-link" id="btnRemoteStatus">Remote Access</a></li>
-            <li><a class="nav-link" href="/portal" style="color: #cbd5e1; font-weight: 500;">Downloads & Apps</a></li>
+            <li><a class="nav-link" href="/portal#downloads" style="color: var(--cyan-accent); font-weight: 700;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -2px; margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Downloads</a></li>
         </ul>
 
         <div class="nav-right-actions">
@@ -67,7 +67,7 @@
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                     <span>Play Now</span>
                 </button>
-                <button class="btn-hero-secondary" onclick="app.openDetailModal(1)">
+                <button class="btn-hero-secondary" id="btnHeroMoreInfo" onclick="app.openDetailModal(1)">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
                     <span>More Info</span>
                 </button>
@@ -134,17 +134,17 @@
 
     <!-- Media Detail Modal -->
     <div class="modal-overlay" id="mediaDetailModal">
-        <div class="modal-card" style="max-width: 680px; padding: 0; overflow: hidden;">
-            <div id="detailBackdrop" style="width: 100%; height: 260px; background-size: cover; background-position: center; position: relative;">
+        <div class="modal-card" style="max-width: 720px; max-height: 90vh; padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+            <div id="detailBackdrop" style="width: 100%; height: 260px; min-height: 260px; background-size: cover; background-position: center; position: relative; flex-shrink: 0;">
                 <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, var(--bg-surface-elevated) 100%);"></div>
-                <button class="player-close-btn" style="position: absolute; top: 16px; right: 16px;" onclick="app.closeDetailModal()">✕</button>
+                <button class="player-close-btn" style="position: absolute; top: 16px; right: 16px; z-index: 10;" onclick="app.closeDetailModal()">✕</button>
             </div>
-            <div style="padding: 24px 32px 32px;">
+            <div style="padding: 24px 32px 32px; overflow-y: auto; flex: 1;">
                 <h2 id="detailTitle" style="font-size: 2rem; font-weight: 800; margin-bottom: 8px;">Title</h2>
                 <div id="detailMeta" style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Meta</div>
                 <p id="detailSynopsis" style="color: #cbd5e1; font-size: 0.95rem; line-height: 1.6; margin-bottom: 20px;">Synopsis</p>
                 <div id="detailCast" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 24px;">Cast</div>
-                <div style="display: flex; gap: 14px; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
                     <button class="btn-hero-play" id="btnDetailPlay">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                         <span>Start Playback</span>
@@ -154,7 +154,8 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         <span>Delete</span>
                     </button>
-                <div id="detailEpisodeList" style="margin-top: 24px;"></div>
+                </div>
+                <div id="detailEpisodeList"></div>
                 <div id="detailAddEpisodeSection" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-subtle); display: none;">
                     <button class="btn-hero-secondary" id="btnToggleAddEpisodeForm" onclick="app.toggleDetailAddEpisodeForm()" style="width: 100%; justify-content: center; font-size: 0.88rem;">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -2px; margin-right: 6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -600,7 +601,7 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <!-- Application Script -->
-    <script src="/static/js/app.js?v=1.1.0"></script>
+    <script src="/static/js/app.js?v=1.2.1"></script>
 </body>
 
 </html>

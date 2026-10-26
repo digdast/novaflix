@@ -874,6 +874,8 @@ async def get_download_variants():
 # -------------------------------------------------------------
 
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/movies", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/shows", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def serve_cinema_app(request: Request):
     """The Cinema UI: Home, Movies, TV Shows, Search, Player."""
     featured = db.get_featured_media()

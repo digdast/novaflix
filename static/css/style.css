@@ -393,8 +393,23 @@ body {
     scroll-behavior: smooth;
 }
 
+/* Responsive Grid for Library Views */
+.media-grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 24px;
+    padding: 12px 0 32px;
+}
+
+@media (max-width: 640px) {
+    .media-grid-container {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 14px;
+    }
+}
+
 /* Movie & Show Cards */
-.media-card {
+a.media-card, .media-card {
     flex: 0 0 200px;
     border-radius: var(--radius-md);
     background: var(--bg-surface);
@@ -402,6 +417,9 @@ body {
     overflow: hidden;
     position: relative;
     cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    display: block;
     transition: var(--transition);
 }
 
