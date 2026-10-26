@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  novaflix:
+    build: .
+    container_name: novaflix
+    restart: unless-stopped
+    ports:
+      - "8096:8096" # Main Media Server & Cinema Web Client
+      - "8097:8097" # Showcase & Download Portal
+    volumes:
+      - ./data:/app/data
+      # Mount host media directories here:
+      # - /mnt/storage/movies:/media/movies:ro
+      # - /mnt/storage/tv:/media/tv:ro
+    environment:
+      - NOVAFLIX_HOST=0.0.0.0
+      - NOVAFLIX_PORT=8096
+      - NOVAFLIX_REMOTE_ENABLED=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/api/media/featured"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NovaFlix | Next-Gen Sovereign Media Server</title>
+    <meta name="description" content="The next-generation open media streaming platform combining the elegance of Plex, freedom of Jellyfin, and power of Emby.">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Topbar Navigation -->
+    <header class="cinema-nav" id="cinemaNav">
+        <a href="/" class="brand-wrap">
+            <div class="brand-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--amber-gold)"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </div>
+            <div>
+                <span class="brand-logo-text">NovaFlix</span>
+            </div>
+        </a>
+
+        <ul class="nav-menu">
+            <li><a class="nav-link active" onclick="location.reload()">Home</a></li>
+            <li><a class="nav-link" href="#shelfMovies">Movies</a></li>
+            <li><a class="nav-link" href="#shelfShows">TV Shows</a></li>
+            <li><a class="nav-link" id="btnRemoteStatus">Remote Access</a></li>
+            <li><a class="nav-link" href="/portal" style="color: var(--amber-gold); font-weight: 700;">Downloads & Apps</a></li>
+        </ul>
+
+        <div class="nav-right-actions">
+            <div class="search-box-wrap">
+                <svg class="search-icon-nav" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="navSearchInput" class="nav-search-input" placeholder="Search movies, shows, cast...">
+            </div>
+
+            <div class="user-profile-btn" title="Admin Profile">
+                A
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Hero Banner -->
+    <section class="hero-backdrop-container" id="heroBackdrop">
+        <div class="hero-overlay-fade"></div>
+        <div class="hero-content">
+            <div class="hero-badge-row">
+                <span class="rating-badge" id="heroRating">★ 9.4</span>
+                <span class="quality-badge">4K UHD</span>
+                <span class="quality-badge" style="color: #c4b5fd; border-color: rgba(139, 92, 246, 0.4);">Dolby Atmos 7.1</span>
+            </div>
+            <h1 class="hero-title" id="heroTitle">Cosmos: The Infinite Horizon</h1>
+            <div class="hero-meta">
+                <span id="heroYear">2026</span>
+                <span>•</span>
+                <span id="heroDuration">1h 48m</span>
+                <span>•</span>
+                <span id="heroGenre">Sci-Fi, Documentary</span>
+            </div>
+            <p class="hero-synopsis" id="heroSynopsis">
+                An awe-inspiring voyage across quantum singularities, black holes, and deep-space nebulae, uncovering the origin of our cosmos in native ultra-high-definition.
+            </p>
+            <div class="hero-btn-row">
+                <button class="btn-hero-play" id="btnHeroPlay">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    <span>Play Now</span>
+                </button>
+                <button class="btn-hero-secondary" onclick="app.openDetailModal(1)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                    <span>More Info</span>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Cinema Media Shelves -->
+    <main class="cinema-main-container">
+        <!-- Continue Watching Shelf -->
+        <section class="media-shelf" id="shelfContinueWatching" style="display: none;">
+            <div class="shelf-header">
+                <h2 class="shelf-title">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--amber-gold)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span>Continue Watching</span>
+                </h2>
+            </div>
+            <div class="shelf-carousel" id="carouselContinueWatching"></div>
+        </section>
+
+        <!-- Trending Movies Shelf -->
+        <section class="media-shelf" id="shelfMovies">
+            <div class="shelf-header">
+                <h2 class="shelf-title">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--violet-primary)" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
+                    <span>Featured 4K Movies</span>
+                </h2>
+            </div>
+            <div class="shelf-carousel" id="carouselMovies">
+                <div style="color: var(--text-muted); padding: 20px;">Loading catalog...</div>
+            </div>
+        </section>
+
+        <!-- TV Series Shelf -->
+        <section class="media-shelf" id="shelfShows">
+            <div class="shelf-header">
+                <h2 class="shelf-title">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--cyan-accent)" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>
+                    <span>Acclaimed TV Series</span>
+                </h2>
+            </div>
+            <div class="shelf-carousel" id="carouselShows">
+                <div style="color: var(--text-muted); padding: 20px;">Loading shows...</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Media Detail Modal -->
+    <div class="modal-overlay" id="mediaDetailModal">
+        <div class="modal-card" style="max-width: 680px; padding: 0; overflow: hidden;">
+            <div id="detailBackdrop" style="width: 100%; height: 260px; background-size: cover; background-position: center; position: relative;">
+                <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, var(--bg-surface-elevated) 100%);"></div>
+                <button class="player-close-btn" style="position: absolute; top: 16px; right: 16px;" onclick="app.closeDetailModal()">✕</button>
+            </div>
+            <div style="padding: 24px 32px 32px;">
+                <h2 id="detailTitle" style="font-size: 2rem; font-weight: 800; margin-bottom: 8px;">Title</h2>
+                <div id="detailMeta" style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Meta</div>
+                <p id="detailSynopsis" style="color: #cbd5e1; font-size: 0.95rem; line-height: 1.6; margin-bottom: 20px;">Synopsis</p>
+                <div id="detailCast" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 24px;">Cast</div>
+                <div style="display: flex; gap: 14px;">
+                    <button class="btn-hero-play" id="btnDetailPlay">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        <span>Start Playback</span>
+                    </button>
+                    <button class="btn-hero-secondary" onclick="app.closeDetailModal()">Close</button>
+                </div>
+                <div id="detailEpisodeList" style="margin-top: 24px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen Video Player Modal -->
+    <div class="player-modal" id="videoPlayerModal">
+        <!-- Top Bar -->
+        <div class="player-topbar">
+            <div>
+                <span id="playerItemTitle" style="font-size: 1.25rem; font-weight: 700; color: #ffffff;">Streaming</span>
+                <span style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--amber-gold); margin-left: 12px;">DIRECT PLAY 4K</span>
+            </div>
+            <button class="player-close-btn" onclick="app.closePlayer()" title="Exit (Esc)">✕</button>
+        </div>
+
+        <!-- Video Element -->
+        <video id="mainVideoElement" class="player-video-element" playsinline></video>
+
+        <!-- Bottom Controls Bar -->
+        <div class="player-bottom-controls">
+            <!-- Scrubber Bar -->
+            <div class="player-scrubber-bar" id="playerScrubberBar">
+                <div class="player-scrubber-progress" id="playerScrubberFill" style="width: 0%;">
+                    <div class="player-scrubber-thumb"></div>
+                </div>
+            </div>
+
+            <!-- Controls Row -->
+            <div class="player-control-row">
+                <div class="player-btn-group">
+                    <button class="btn-ctrl" id="btnPlayPause" onclick="app.togglePlay()" title="Play/Pause (Space)">
+                        <span id="iconPlayPause">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        </span>
+                    </button>
+                    <span id="playerTimeDisplay" style="font-family: var(--font-mono); font-size: 0.88rem; color: var(--text-secondary);">00:00 / 00:00</span>
+                </div>
+
+                <div class="player-btn-group">
+                    <button class="btn-ctrl" onclick="app.toggleSyncPlayPanel()" title="Watch Together (SyncPlay)">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    </button>
+                    <button class="btn-ctrl" onclick="app.toggleFullscreen()" title="Fullscreen (F)">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SyncPlay Sidebar -->
+        <div class="syncplay-sidebar" id="syncPlaySidebar">
+            <div class="syncplay-header">
+                <div>
+                    <span style="font-weight: 700; color: #ffffff;">Watch Together</span>
+                    <span class="rating-badge" style="font-size: 0.7rem; margin-left: 6px;">SYNCPLAY</span>
+                </div>
+                <button class="btn-ctrl" onclick="app.toggleSyncPlayPanel()">✕</button>
+            </div>
+            <div class="syncplay-messages" id="syncChatMessages">
+                <div class="chat-bubble">
+                    <div class="chat-author">System</div>
+                    <div>Room DEMO-ROOM-1 is active. Playback is synchronized across all viewers.</div>
+                </div>
+            </div>
+            <div class="syncplay-input-row">
+                <input type="text" id="syncChatInput" class="nav-search-input" style="border-radius: var(--radius-sm);" placeholder="Say something..." onkeydown="if(event.key==='Enter') app.sendChatMessage()">
+                <button class="btn-hero-play" style="padding: 8px 16px; font-size: 0.85rem;" onclick="app.sendChatMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Remote Access Modal -->
+    <div class="modal-overlay" id="remoteAccessModal">
+        <div class="modal-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 1.3rem; font-weight: 800; color: #ffffff;">Remote Access Status</h3>
+                <button class="player-close-btn" style="width: 32px; height: 32px;" onclick="app.closeRemoteModal()">✕</button>
+            </div>
+            <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-md); padding: 14px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px;">
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--emerald-safe); box-shadow: 0 0 10px var(--emerald-safe);"></div>
+                <div>
+                    <div style="font-weight: 700; color: var(--emerald-safe);">Remote Streaming Reachable</div>
+                    <div style="font-size: 0.8rem; color: #cbd5e1;">Your server is reachable outside your local network.</div>
+                </div>
+            </div>
+            <div style="font-size: 0.9rem; display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Public WAN IP:</span>
+                    <span id="remoteWanIp" style="font-family: var(--font-mono); font-weight: 600;">Detecting...</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Internal LAN IP:</span>
+                    <span id="remoteLanIp" style="font-family: var(--font-mono); font-weight: 600;">Detecting...</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Port:</span>
+                    <span id="remotePort" style="font-family: var(--font-mono);">8096</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <span style="color: var(--text-muted);">External Stream URL:</span>
+                    <span id="remotePublicUrl" style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--cyan-accent); word-break: break-all;">-</span>
+                </div>
+            </div>
+            <button class="btn-hero-play" style="width: 100%; justify-content: center;" onclick="app.closeRemoteModal()">Close</button>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

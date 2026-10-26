@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NovaFlix | Download Free Sovereign Media Server for Windows, Mac & Linux</title>
+    <meta name="description" content="Download NovaFlix Server for Windows, macOS, Linux, and Docker. The ultimate open-source alternative to Plex, Jellyfin, and Emby with zero ads and free remote access.">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Topbar Navigation -->
+    <header class="cinema-nav" style="background: rgba(6, 8, 14, 0.95);">
+        <a href="/" class="brand-wrap">
+            <div class="brand-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--amber-gold)"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </div>
+            <div>
+                <span class="brand-logo-text">NovaFlix</span>
+            </div>
+        </a>
+
+        <ul class="nav-menu">
+            <li><a class="nav-link" href="#downloads">Downloads</a></li>
+            <li><a class="nav-link" href="#comparison">Compare</a></li>
+            <li><a class="nav-link" href="#features">Features</a></li>
+            <li><a class="nav-link" href="https://github.com/digdast/novaflix" target="_blank">GitHub</a></li>
+        </ul>
+
+        <div class="nav-right-actions">
+            <button class="btn-hero-secondary" style="padding: 10px 20px;" id="btnPortalSignUp">Create Free Account</button>
+            <a href="/" class="btn-hero-play" style="padding: 10px 22px; font-size: 0.92rem; text-decoration: none;">Launch Web Client</a>
+        </div>
+    </header>
+
+    <!-- Portal Hero Section -->
+    <section class="portal-hero">
+        <div class="portal-tagline-badge">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            <span>The Sovereign Open-Source Media Platform</span>
+        </div>
+        <h1 class="portal-headline">Your Media. Your Cloud. Truly Sovereign.</h1>
+        <p class="portal-subtext">
+            Say goodbye to paid tiers, intrusive telemetry, and locked features. NovaFlix combines the cinematic polish of Plex, the uncompromised open freedom of Jellyfin, and the raw performance of Emby into one unified platform.
+        </p>
+        <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
+            <a href="#downloads" class="btn-hero-play">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Download NovaFlix Server</span>
+            </a>
+            <a href="/" class="btn-hero-secondary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <span>Live Web Demo</span>
+            </a>
+        </div>
+    </section>
+
+    <!-- Download Matrix Section -->
+    <section class="download-section" id="downloads">
+        <div style="text-align: center; margin-bottom: 32px;">
+            <h2 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 10px;">Download NovaFlix for Your Platform</h2>
+            <p style="color: var(--text-secondary);">Native builds optimized for maximum streaming throughput and low memory footprint.</p>
+        </div>
+
+        <!-- OS Tabs -->
+        <div class="os-tab-buttons">
+            <button class="os-tab-btn active" data-os="windows">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+                <span>Windows</span>
+            </button>
+            <button class="os-tab-btn" data-os="macos">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.85-.9.04-2 .6-2.65 1.35-.58.66-1.09 1.73-.95 2.76.99.08 2.05-.51 2.68-1.26"/></svg>
+                <span>macOS</span>
+            </button>
+            <button class="os-tab-btn" data-os="linux">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12.001 2c-2.33 0-4.32 1.63-4.78 3.87-.24 1.15-.14 2.36.27 3.45C6.01 10.37 5 11.83 5 13.5c0 1.93 1.57 3.5 3.5 3.5.35 0 .69-.05 1.01-.15.42.74 1.05 1.34 1.83 1.72-.37.91-.4 1.95-.04 2.9.28.75.82 1.38 1.5 1.76.68.38 1.48.52 2.24.4.77-.12 1.48-.48 2.01-1.03.54-.55.85-1.29.89-2.06.04-.77-.19-1.54-.64-2.16.89-.52 1.57-1.33 1.93-2.3.26-.06.52-.15.77-.28 1.62-.83 2.24-2.84 1.41-4.46-.37-.73-.99-1.3-1.74-1.62.19-.78.18-1.61-.03-2.39C19.14 5.37 15.86 2 12.001 2z"/></svg>
+                <span>Linux</span>
+            </button>
+            <button class="os-tab-btn" data-os="docker">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.186.185.186zm0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.186.185.186zm-2.93 2.714h2.118a.185.185 0 00.185-.185V9.006a.185.185 0 00-.185-.186H8.099a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185"/></svg>
+                <span>Docker & Homelab</span>
+            </button>
+        </div>
+
+        <!-- Windows Group -->
+        <div class="download-cards-grid download-os-group" data-os="windows">
+            <div class="download-card">
+                <div class="download-os-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+                </div>
+                <div class="download-os-title">Windows Installer</div>
+                <div class="download-os-desc">Standard 64-bit setup for Windows 10, 11, and Windows Server with auto-launch.</div>
+                <button class="btn-download-primary" onclick="portal.triggerDownload('NovaFlix-Setup-x64.exe')">Download .EXE (48 MB)</button>
+            </div>
+
+            <div class="download-card">
+                <div class="download-os-icon" style="color: var(--amber-gold);">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+                </div>
+                <div class="download-os-title">Portable Zip Archive</div>
+                <div class="download-os-desc">Zero-installation standalone portable build. Extract and double-click run.bat.</div>
+                <button class="btn-download-primary" style="background: linear-gradient(135deg, var(--amber-gold), #d97706);" onclick="portal.triggerDownload('NovaFlix-Portable.zip')">Download .ZIP (42 MB)</button>
+            </div>
+
+            <div class="download-card">
+                <div class="download-os-icon" style="color: var(--cyan-accent);">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                </div>
+                <div class="download-os-title">Windows 1-Click Script</div>
+                <div class="download-os-desc">Instant launch via PowerShell / cmd without compiling or installing heavy runtimes.</div>
+                <button class="btn-download-primary" style="background: linear-gradient(135deg, var(--cyan-accent), #0284c7);" onclick="portal.triggerDownload('run.bat')">Download run.bat</button>
+            </div>
+        </div>
+
+        <!-- macOS Group -->
+        <div class="download-cards-grid download-os-group" data-os="macos" style="display: none;">
+            <div class="download-card">
+                <div class="download-os-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.85-.9.04-2 .6-2.65 1.35-.58.66-1.09 1.73-.95 2.76.99.08 2.05-.51 2.68-1.26"/></svg>
+                </div>
+                <div class="download-os-title">macOS Universal .DMG</div>
+                <div class="download-os-desc">Native Apple Silicon (M1/M2/M3/M4) and Intel 64-bit installer with Metal acceleration.</div>
+                <button class="btn-download-primary" onclick="portal.triggerDownload('NovaFlix-Universal.dmg')">Download .DMG (56 MB)</button>
+            </div>
+
+            <div class="download-card">
+                <div class="download-os-icon" style="color: var(--amber-gold);">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
+                </div>
+                <div class="download-os-title">Homebrew Cask</div>
+                <div class="download-os-desc">Install and manage via Homebrew package manager in your macOS terminal.</div>
+                <div style="background: rgba(0,0,0,0.4); padding: 12px; border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 0.8rem; color: #a5f3fc;">brew install digdast/novaflix</div>
+            </div>
+        </div>
+
+        <!-- Linux Group -->
+        <div class="download-cards-grid download-os-group" data-os="linux" style="display: none;">
+            <div class="download-card">
+                <div class="download-os-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </div>
+                <div class="download-os-title">Debian / Ubuntu (.deb)</div>
+                <div class="download-os-desc">Native package with systemd service for Ubuntu 22.04+, Debian 12, and Proxmox LXC.</div>
+                <button class="btn-download-primary" onclick="portal.triggerDownload('novaflix_amd64.deb')">Download .DEB (38 MB)</button>
+            </div>
+
+            <div class="download-card">
+                <div class="download-os-icon" style="color: var(--rose-danger);">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                </div>
+                <div class="download-os-title">Fedora / RHEL (.rpm)</div>
+                <div class="download-os-desc">Red Hat Enterprise Linux, Fedora, Rocky Linux, and AlmaLinux packages.</div>
+                <button class="btn-download-primary" style="background: linear-gradient(135deg, var(--rose-danger), #e11d48);" onclick="portal.triggerDownload('novaflix.rpm')">Download .RPM (39 MB)</button>
+            </div>
+        </div>
+
+        <!-- Docker Group -->
+        <div class="download-cards-grid download-os-group" data-os="docker" style="display: none;">
+            <div class="download-card" style="grid-column: 1 / -1; text-align: left;">
+                <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 16px;">
+                    <div class="download-os-icon" style="margin: 0; color: #38bdf8;">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.186.185.186zm0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.186.185.186zm-2.93 2.714h2.118a.185.185 0 00.185-.185V9.006a.185.185 0 00-.185-.186H8.099a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185"/></svg>
+                    </div>
+                    <div>
+                        <div class="download-os-title" style="margin: 0;">Docker Compose Deployment</div>
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">One-command container deployment for Unraid, TrueNAS SCALE, Synology, or Linux.</div>
+                    </div>
+                </div>
+                <pre style="background: rgba(0,0,0,0.6); padding: 18px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); color: #a5f3fc; font-family: var(--font-mono); font-size: 0.82rem; overflow-x: auto;">
+services:
+  novaflix:
+    image: ghcr.io/digdast/novaflix:latest
+    container_name: novaflix
+    restart: unless-stopped
+    ports:
+      - "8096:8096"
+      - "8097:8097"
+    volumes:
+      - ./data:/app/data
+      - /path/to/movies:/media/movies:ro
+      - /path/to/tv:/media/tv:ro
+    environment:
+      - NOVAFLIX_PORT=8096
+      - NOVAFLIX_REMOTE_ENABLED=true</pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison Matrix Section -->
+    <section class="comparison-section" id="comparison">
+        <div style="text-align: center; margin-bottom: 32px;">
+            <h2 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 10px;">Why NovaFlix Outshines the Rest</h2>
+            <p style="color: var(--text-secondary);">Built from the ground up for privacy, speed, and sovereign control.</p>
+        </div>
+
+        <div class="comparison-table-wrap">
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Capability</th>
+                        <th class="highlight-col">✨ NovaFlix</th>
+                        <th>Plex</th>
+                        <th>Jellyfin</th>
+                        <th>Emby</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>100% Free & Open Source</strong></td>
+                        <td class="highlight-col">✅ Yes (Zero paywalls)</td>
+                        <td>❌ Proprietary / Paid Pass</td>
+                        <td>✅ Yes</td>
+                        <td>❌ Freemium / Premiere</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Third-Party Commercial Ads</strong></td>
+                        <td class="highlight-col">🛡️ Zero Ads Ever</td>
+                        <td>❌ Invasive ads & free TV</td>
+                        <td>🛡️ Zero Ads</td>
+                        <td>⚠️ Upgrade banners</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Modern Glassmorphic Cinema UI</strong></td>
+                        <td class="highlight-col">✅ Next-Gen Dark Glass</td>
+                        <td>⚠️ Cluttered / Ad heavy</td>
+                        <td>❌ Basic / Dated CSS</td>
+                        <td>⚠️ Traditional grid</td>
+                    </tr>
+                    <tr>
+                        <td><strong>4K Direct Play & Range Streaming</strong></td>
+                        <td class="highlight-col">✅ Included Free</td>
+                        <td>⚠️ Restricted without Pass</td>
+                        <td>✅ Included</td>
+                        <td>⚠️ Premiere feature</td>
+                    </tr>
+                    <tr>
+                        <td><strong>SyncPlay (Watch Together) + Chat</strong></td>
+                        <td class="highlight-col">✅ Built-in Real-time</td>
+                        <td>⚠️ Plex Watch Together</td>
+                        <td>⚠️ Frequent desyncs</td>
+                        <td>❌ No native chat</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Built-in Remote Access & Relay</strong></td>
+                        <td class="highlight-col">✅ 1-Click Zero-Conf</td>
+                        <td>⚠️ Requires Plex Cloud Auth</td>
+                        <td>❌ Manual reverse proxy</td>
+                        <td>⚠️ Emby Connect</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Memory Footprint</strong></td>
+                        <td class="highlight-col">⚡ ~55 MB (FastAPI/WAL)</td>
+                        <td>❌ ~450 MB+</td>
+                        <td>⚠️ ~220 MB (C# .NET)</td>
+                        <td>⚠️ ~260 MB (.NET)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Sign Up Modal -->
+    <div class="modal-overlay" id="signupModal">
+        <div class="modal-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 1.4rem; font-weight: 800; color: #ffffff;">Create Sovereign Account</h3>
+                <button class="player-close-btn" style="width: 32px; height: 32px;" onclick="portal.closeSignUpModal()">✕</button>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 24px;">
+                Set up your master admin or family profile to unlock direct streaming and remote access.
+            </p>
+            <form id="portalSignupForm">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Username</label>
+                    <input type="text" id="signupUsername" class="nav-search-input" style="width: 100%; border-radius: var(--radius-sm);" placeholder="e.g. efrain" required>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Password</label>
+                    <input type="password" id="signupPassword" class="nav-search-input" style="width: 100%; border-radius: var(--radius-sm);" placeholder="••••••••••••" required>
+                </div>
+                <div id="signupStatus" style="font-size: 0.85rem; margin-bottom: 16px;"></div>
+                <button type="submit" class="btn-hero-play" style="width: 100%; justify-content: center;">Create Account & Launch</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Portal Script -->
+    <script src="/static/js/portal.js"></script>
+</body>
+</html>
