@@ -210,7 +210,7 @@ async def syncplay_websocket(websocket: WebSocket, room_id: str):
 # Plex-Style Download & Showcase Portal
 # -------------------------------------------------------------
 
-@app.get("/portal", response_class=HTMLResponse)
+@app.api_route("/portal", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def serve_download_portal(request: Request):
     """Plex-style product landing, sign-up and multi-platform download page."""
     connection_info = await remote_service.get_connection_info()
@@ -261,7 +261,7 @@ async def get_download_variants():
 # NovaFlix Cinema Web App
 # -------------------------------------------------------------
 
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def serve_cinema_app(request: Request):
     """The Cinema UI: Home, Movies, TV Shows, Search, Player."""
     featured = db.get_featured_media()
