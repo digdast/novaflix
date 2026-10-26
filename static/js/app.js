@@ -11,6 +11,9 @@ class NovaFlixApp {
         this.syncSocket = null;
         this.syncRoomId = null;
         this.progressTimer = null;
+        this.libraries = [];
+        this.currentLibraryFilter = null;
+        this.showsList = [];
 
         this.initElements();
         this.initEventListeners();
@@ -34,17 +37,39 @@ class NovaFlixApp {
             this.video.addEventListener('ended', () => this.onEnded());
             this.video.addEventListener('play', () => this.updatePlayIcon(true));
             this.video.addEventListener('pause', () => this.updatePlayIcon(false));
+            this.video.addEventListener('error', () => {
+                console.error('Video error encountered:', this.video.error);
+                if (this.currentMedia && !this.video.src.includes('transcode=1')) {
+                    this.showToast('Adapting stream for browser compatibility...', 'info');
+                    this.video.src = `/stream/${this.currentMedia.id}?transcode=1`;
+                    this.video.play().catch(() => {});
+                } else {
+                    this.showToast('Playback error: Unable to decode stream.', 'error');
+                }
+            });
         }
 
         // Scrubber seeking
         if (this.scrubberBar) {
             this.scrubberBar.addEventListener('click', (e) => {
-                if (!this.video || !this.video.duration) return;
+                if (!this.video) return;
+                const totalDuration = (this.currentMedia && this.currentMedia.duration_seconds) ? this.currentMedia.duration_seconds : this.video.duration;
+                if (!totalDuration) return;
+
                 const rect = this.scrubberBar.getBoundingClientRect();
-                const pos = (e.clientX - rect.left) / rect.width;
-                this.video.currentTime = pos * this.video.duration;
+                const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                const targetTime = pos * totalDuration;
+
+                if (!this.video.duration || !isFinite(this.video.duration)) {
+                    this.seekOffset = targetTime;
+                    this.video.src = `/stream/${this.currentMedia.id}?start=${Math.floor(targetTime)}`;
+                    this.video.play().catch(() => {});
+                } else {
+                    this.video.currentTime = targetTime;
+                }
+
                 if (this.syncSocket && this.syncRoomId) {
-                    this.sendSyncMessage({ type: 'SEEK', position: this.video.currentTime });
+                    this.sendSyncMessage({ type: 'SEEK', position: targetTime });
                 }
             });
         }
@@ -62,9 +87,15 @@ class NovaFlixApp {
                 e.preventDefault();
                 this.toggleMute();
             } else if (e.code === 'ArrowRight') {
-                this.video.currentTime += 10;
+                this.seekRelative(10);
             } else if (e.code === 'ArrowLeft') {
-                this.video.currentTime -= 10;
+                this.seekRelative(-10);
+            } else if (e.code === 'ArrowUp') {
+                e.preventDefault();
+                this.setVolume(Math.min(1.0, (this.video?.volume || 1.0) + 0.1));
+            } else if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                this.setVolume(Math.max(0.0, (this.video?.volume || 1.0) - 0.1));
             } else if (e.code === 'Escape') {
                 this.closePlayer();
             }
@@ -102,21 +133,152 @@ class NovaFlixApp {
 
     async loadCatalog() {
         try {
-            const [featuredRes, moviesRes, showsRes, continueRes] = await Promise.all([
+            const [featuredRes, libsRes, continueRes, showsListRes] = await Promise.all([
                 fetch('/api/media/featured').then(r => r.json()),
-                fetch('/api/media/movies').then(r => r.json()),
-                fetch('/api/media/shows').then(r => r.json()),
-                fetch('/api/media/continue?user_id=' + this.currentUser.id).then(r => r.json())
+                fetch('/api/libraries').then(r => r.json()),
+                fetch('/api/media/continue?user_id=' + this.currentUser.id).then(r => r.json()),
+                fetch('/api/shows/list').then(r => r.json())
             ]);
+
+            this.libraries = libsRes || [];
+            this.showsList = showsListRes || [];
 
             this.renderFeatured(featuredRes);
             this.renderContinueWatching(continueRes);
-            this.renderMovies(moviesRes);
-            this.renderShows(showsRes);
+            this.renderLibraryPills();
+            await this.renderDynamicShelves();
         } catch (e) {
             console.error('Failed to load catalog', e);
         }
     }
+
+    renderLibraryPills() {
+        const container = document.getElementById('dynamicLibraryPills');
+        const pillAll = document.getElementById('pillAllMedia');
+        if (pillAll) {
+            pillAll.className = `lib-pill ${this.currentLibraryFilter === null ? 'active' : ''}`;
+        }
+        if (!container) return;
+
+        container.innerHTML = this.libraries.map(l => {
+            const isMovie = l.type === 'movies';
+            const iconSvg = isMovie
+                ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>'
+                : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>';
+
+            return `
+                <button class="lib-pill ${this.currentLibraryFilter === l.id ? 'active' : ''}" onclick="app.filterByLibrary(${l.id})">
+                    ${iconSvg}
+                    <span>${l.name} (${l.item_count})</span>
+                </button>
+            `;
+        }).join('');
+    }
+
+    async filterByLibrary(libId) {
+        this.currentLibraryFilter = libId;
+        this.renderLibraryPills();
+        await this.renderDynamicShelves();
+    }
+
+    async renderDynamicShelves() {
+        const container = document.getElementById('dynamicShelvesContainer');
+        if (!container) return;
+
+        // If filtering by specific library
+        if (this.currentLibraryFilter !== null) {
+            const lib = this.libraries.find(l => l.id === this.currentLibraryFilter);
+            if (!lib) {
+                this.currentLibraryFilter = null;
+                return this.renderDynamicShelves();
+            }
+
+            container.innerHTML = `<div style="color: var(--text-muted); padding: 24px;">Loading ${lib.name}...</div>`;
+            const items = await fetch(`/api/libraries/${lib.id}/items`).then(r => r.json());
+
+            const isMovie = lib.type === 'movies';
+            const iconSvg = isMovie
+                ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--violet-primary)" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>'
+                : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--cyan-accent)" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>';
+
+            container.innerHTML = `
+                <section class="media-shelf">
+                    <div class="shelf-header">
+                        <h2 class="shelf-title">
+                            ${iconSvg}
+                            <span>${lib.name}</span>
+                            <span class="rating-badge" style="font-size: 0.72rem; margin-left: 8px;">${lib.item_count} ITEMS</span>
+                        </h2>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="shelf-action-btn" onclick="app.openAddMediaModal('single', ${lib.id})">
+                                + Add Media
+                            </button>
+                            <button class="shelf-action-btn" onclick="app.startLibraryScan(${lib.id})">
+                                ↻ Scan Library
+                            </button>
+                        </div>
+                    </div>
+                    <div class="shelf-carousel">
+                        ${items && items.length > 0 ? items.map(m => this.createMediaCard(m)).join('') : '<div style="color: var(--text-muted); padding: 24px;">No items in this library yet. Click "+ Add Media" above to add some!</div>'}
+                    </div>
+                </section>
+            `;
+            return;
+        }
+
+        // Otherwise render all libraries
+        if (!this.libraries || this.libraries.length === 0) {
+            container.innerHTML = '<div style="color: var(--text-muted); padding: 30px;">No libraries found. Click "+ New Library" above to add one.</div>';
+            return;
+        }
+
+        let shelvesHtml = '';
+        for (const lib of this.libraries) {
+            const isMovie = lib.type === 'movies';
+            const iconSvg = isMovie
+                ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--violet-primary)" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>'
+                : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--cyan-accent)" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>';
+
+            shelvesHtml += `
+                <section class="media-shelf" id="shelf-lib-${lib.id}">
+                    <div class="shelf-header">
+                        <h2 class="shelf-title">
+                            ${iconSvg}
+                            <span>${lib.name}</span>
+                            <span class="rating-badge" style="font-size: 0.72rem; margin-left: 8px;">${lib.item_count} ITEMS</span>
+                        </h2>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="shelf-action-btn" onclick="app.openAddMediaModal('single', ${lib.id})">
+                                + Add
+                            </button>
+                            <button class="shelf-action-btn" onclick="app.startLibraryScan(${lib.id})">
+                                ↻ Scan
+                            </button>
+                        </div>
+                    </div>
+                    <div class="shelf-carousel" id="carousel-lib-${lib.id}">
+                        <div style="color: var(--text-muted); padding: 16px;">Loading ${lib.name}...</div>
+                    </div>
+                </section>
+            `;
+        }
+        container.innerHTML = shelvesHtml;
+
+        // Populate items for each library shelf asynchronously
+        for (const lib of this.libraries) {
+            fetch(`/api/libraries/${lib.id}/items`).then(r => r.json()).then(items => {
+                const el = document.getElementById(`carousel-lib-${lib.id}`);
+                if (el) {
+                    if (items && items.length > 0) {
+                        el.innerHTML = items.map(m => this.createMediaCard(m)).join('');
+                    } else {
+                        el.innerHTML = `<div style="color: var(--text-muted); padding: 20px;">Library is empty. Click "+ Add" above to add media.</div>`;
+                    }
+                }
+            }).catch(() => {});
+        }
+    }
+
 
     renderFeatured(item) {
         if (!item || !item.id) return;
@@ -257,25 +419,55 @@ class NovaFlixApp {
                 };
             }
 
-            // If it's a TV series, render episodes list
-            if (episodeList) {
-                if (item.type === 'show' && item.episodes && item.episodes.length > 0) {
-                    episodeList.style.display = 'block';
-                    episodeList.innerHTML = `
-                        <h4 style="margin: 20px 0 12px; font-size: 1.1rem; color: #ffffff;">Episodes</h4>
-                        ${item.episodes.map(ep => `
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); margin-bottom: 8px; cursor: pointer;" onclick="app.closeDetailModal(); app.playMediaById(${ep.id});">
-                                <div>
-                                    <span style="font-weight: 700; color: #ffffff;">S${ep.season_number} E${ep.episode_number}: ${ep.title}</span>
-                                    <div style="font-size: 0.8rem; color: var(--text-muted);">${ep.duration || '45m'}</div>
-                                </div>
-                                <span class="play-circle-btn" style="width: 32px; height: 32px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></span>
-                            </div>
-                        `).join('')}
-                    `;
-                } else {
-                    episodeList.style.display = 'none';
+            // Handle TV Series episode list & manual episode addition
+            const addEpSection = document.getElementById('detailAddEpisodeSection');
+            const addEpForm = document.getElementById('detailAddEpisodeForm');
+            if (addEpForm) addEpForm.style.display = 'none';
+
+            if (item.type === 'show') {
+                if (addEpSection) addEpSection.style.display = 'block';
+
+                let nextSeason = 1;
+                let nextEp = 1;
+                if (item.episodes && item.episodes.length > 0) {
+                    const lastEp = item.episodes[item.episodes.length - 1];
+                    nextSeason = lastEp.season_number || 1;
+                    nextEp = (lastEp.episode_number || 0) + 1;
                 }
+                const epSeasonInp = document.getElementById('detailEpSeason');
+                const epNumInp = document.getElementById('detailEpNumber');
+                const epTitleInp = document.getElementById('detailEpTitle');
+                const epFileInp = document.getElementById('detailEpFilePath');
+                if (epSeasonInp) epSeasonInp.value = nextSeason;
+                if (epNumInp) epNumInp.value = nextEp;
+                if (epTitleInp) epTitleInp.value = '';
+                if (epFileInp) epFileInp.value = '';
+
+                if (episodeList) {
+                    episodeList.style.display = 'block';
+                    if (item.episodes && item.episodes.length > 0) {
+                        episodeList.innerHTML = `
+                            <h4 style="margin: 20px 0 12px; font-size: 1.1rem; color: #ffffff;">Episodes (${item.episodes.length})</h4>
+                            ${item.episodes.map(ep => `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); margin-bottom: 8px; cursor: pointer;" onclick="app.closeDetailModal(); app.playMediaById(${ep.id});">
+                                    <div>
+                                        <span style="font-weight: 700; color: #ffffff;">S${ep.season_number} E${ep.episode_number}: ${ep.title}</span>
+                                        <div style="font-size: 0.8rem; color: var(--text-muted);">${ep.duration || '45m'}${ep.resolution ? ' • ' + ep.resolution : ''}</div>
+                                    </div>
+                                    <span class="play-circle-btn" style="width: 32px; height: 32px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></span>
+                                </div>
+                            `).join('')}
+                        `;
+                    } else {
+                        episodeList.innerHTML = `
+                            <h4 style="margin: 20px 0 12px; font-size: 1.1rem; color: #ffffff;">Episodes</h4>
+                            <div style="color: var(--text-muted); font-size: 0.9rem; padding: 8px 0;">No episodes added yet. Use the button below to add an episode to this series.</div>
+                        `;
+                    }
+                }
+            } else {
+                if (addEpSection) addEpSection.style.display = 'none';
+                if (episodeList) episodeList.style.display = 'none';
             }
 
             modal.classList.add('active');
@@ -287,6 +479,59 @@ class NovaFlixApp {
     closeDetailModal() {
         const modal = document.getElementById('mediaDetailModal');
         if (modal) modal.classList.remove('active');
+    }
+
+    toggleDetailAddEpisodeForm(open = null) {
+        const form = document.getElementById('detailAddEpisodeForm');
+        if (!form) return;
+        const isCurrentlyOpen = form.style.display === 'block';
+        const shouldOpen = open !== null ? open : !isCurrentlyOpen;
+        form.style.display = shouldOpen ? 'block' : 'none';
+        if (shouldOpen) {
+            document.getElementById('detailEpTitle')?.focus();
+        }
+    }
+
+    async submitDetailEpisode() {
+        if (!this.currentMedia || !this.currentMedia.id) return;
+        const season = parseInt(document.getElementById('detailEpSeason')?.value) || 1;
+        const episode = parseInt(document.getElementById('detailEpNumber')?.value) || 1;
+        const title = document.getElementById('detailEpTitle')?.value.trim();
+        const filePath = document.getElementById('detailEpFilePath')?.value.trim();
+
+        if (!title) {
+            this.showToast('Episode title is required', 'error');
+            return;
+        }
+        if (!filePath) {
+            this.showToast('File path is required', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/shows/${this.currentMedia.id}/episodes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title,
+                    season_number: season,
+                    episode_number: episode,
+                    file_path: filePath
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                this.showToast(`✓ Added S${season}E${episode}: "${title}"!`, 'success');
+                this.toggleDetailAddEpisodeForm(false);
+                await this.openDetailModal(this.currentMedia.id);
+                this.loadCatalog();
+            } else {
+                this.showToast(data.detail || 'Failed to add episode', 'error');
+            }
+        } catch (e) {
+            this.showToast(`Error: ${e.message}`, 'error');
+        }
     }
 
     async playMediaById(itemId) {
@@ -301,12 +546,34 @@ class NovaFlixApp {
 
     playMedia(item) {
         this.currentMedia = item;
+        this.seekOffset = 0;
         const streamUrl = `/stream/${item.id}`;
         
-        document.getElementById('playerItemTitle').innerText = item.title;
+        const titleEl = document.getElementById('playerItemTitle');
+        if (titleEl) titleEl.innerText = item.title;
+
+        // Reset volume and unmuted state
         this.video.src = streamUrl;
+        this.video.muted = false;
+        this.video.volume = 1.0;
+        this.setVolume(1.0);
+        this.updateVolumeIcon(false, 1.0);
+
+        const unmuteBanner = document.getElementById('playerUnmuteBanner');
+        if (unmuteBanner) unmuteBanner.style.display = 'none';
+
+        const badge = document.getElementById('playerAudioTrackBadge');
+        if (badge) badge.innerText = "STEREO AAC";
+
         this.playerModal.classList.add('active');
-        this.video.play().catch(() => {});
+        this.video.play().catch(e => {
+            console.warn('Playback autoplay note:', e);
+            // If browser blocked unmuted autoplay policy, play muted and prompt user to unmute
+            this.video.muted = true;
+            this.updateVolumeIcon(true, 1.0);
+            if (unmuteBanner) unmuteBanner.style.display = 'block';
+            this.video.play().catch(err => console.error('Play error', err));
+        });
 
         // Start background progress recording every 5 seconds
         clearInterval(this.progressTimer);
@@ -319,6 +586,7 @@ class NovaFlixApp {
             this.video.pause();
             this.video.src = '';
         }
+        this.seekOffset = 0;
         clearInterval(this.progressTimer);
         if (this.playerModal) this.playerModal.classList.remove('active');
         this.loadCatalog();
@@ -352,10 +620,12 @@ class NovaFlixApp {
     }
 
     onTimeUpdate() {
-        if (!this.video || !this.video.duration) return;
-        const current = this.video.currentTime;
-        const total = this.video.duration;
-        const percent = (current / total) * 100;
+        if (!this.video) return;
+        const total = (this.currentMedia && this.currentMedia.duration_seconds) ? this.currentMedia.duration_seconds : this.video.duration;
+        if (!total) return;
+
+        const current = (this.seekOffset || 0) + (this.video.currentTime || 0);
+        const percent = Math.min(100, Math.max(0, (current / total) * 100));
 
         if (this.scrubberFill) this.scrubberFill.style.width = `${percent}%`;
         if (this.timeDisplay) {
@@ -382,13 +652,69 @@ class NovaFlixApp {
         }
     }
 
+    seekRelative(seconds) {
+        if (!this.video) return;
+        const newTime = Math.max(0, (this.video.currentTime || 0) + seconds);
+        this.video.currentTime = newTime;
+    }
+
     toggleMute() {
         if (!this.video) return;
         this.video.muted = !this.video.muted;
+        this.updateVolumeIcon(this.video.muted, this.video.volume);
+        const unmuteBanner = document.getElementById('playerUnmuteBanner');
+        if (unmuteBanner && !this.video.muted) unmuteBanner.style.display = 'none';
+    }
+
+    unmute() {
+        if (!this.video) return;
+        this.video.muted = false;
+        if (this.video.volume < 0.1) this.video.volume = 1.0;
+        this.updateVolumeIcon(false, this.video.volume);
+        const slider = document.getElementById('playerVolumeSlider');
+        if (slider) slider.value = this.video.volume;
+        const unmuteBanner = document.getElementById('playerUnmuteBanner');
+        if (unmuteBanner) unmuteBanner.style.display = 'none';
     }
 
     setVolume(val) {
-        if (this.video) this.video.volume = parseFloat(val);
+        const v = Math.max(0, Math.min(1, parseFloat(val)));
+        if (this.video) {
+            this.video.volume = v;
+            if (v > 0 && this.video.muted) {
+                this.video.muted = false;
+            }
+            this.updateVolumeIcon(this.video.muted, v);
+        }
+        const slider = document.getElementById('playerVolumeSlider');
+        if (slider) slider.value = v;
+        const unmuteBanner = document.getElementById('playerUnmuteBanner');
+        if (unmuteBanner && v > 0 && !this.video?.muted) unmuteBanner.style.display = 'none';
+    }
+
+    updateVolumeIcon(isMuted, volume) {
+        const iconEl = document.getElementById('iconVolume');
+        if (!iconEl) return;
+        if (isMuted || volume <= 0.01) {
+            iconEl.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--crimson-accent)" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>`;
+        } else if (volume < 0.5) {
+            iconEl.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+        } else {
+            iconEl.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+        }
+    }
+
+    forceAudioRemux() {
+        if (!this.currentMedia || !this.video) return;
+        const curTime = Math.floor((this.seekOffset || 0) + (this.video.currentTime || 0));
+        this.video.src = `/stream/${this.currentMedia.id}?remux=1&start=${curTime}`;
+        this.seekOffset = curTime;
+        this.video.muted = false;
+        this.video.volume = 1.0;
+        this.setVolume(1.0);
+        this.video.play().catch(() => {});
+        const badge = document.getElementById('playerAudioTrackBadge');
+        if (badge) badge.innerText = "STEREO AAC (ACTIVE)";
     }
 
     async recordProgress(completed = false) {
@@ -517,11 +843,12 @@ class NovaFlixApp {
     // Add Media & Library Management
     // -------------------------------------------------------------
 
-    openAddMediaModal(tab = 'single') {
+    openAddMediaModal(tab = 'single', preselectLibId = null) {
         const modal = document.getElementById('addMediaModal');
         if (!modal) return;
         modal.classList.add('active');
         this.switchAddMediaTab(tab);
+        this.populateAddMediaOptions(preselectLibId);
         this.loadLibraries();
     }
 
@@ -530,36 +857,250 @@ class NovaFlixApp {
         if (modal) modal.classList.remove('active');
     }
 
+    populateAddMediaOptions(preselectLibId = null) {
+        const libSelect = document.getElementById('addMediaLibrarySelect');
+        const showSelect = document.getElementById('addMediaParentShowSelect');
+        const typeSelect = document.getElementById('addMediaType');
+
+        if (libSelect) {
+            libSelect.innerHTML = (this.libraries || []).map(l => `
+                <option value="${l.id}" data-type="${l.type}">${l.name} (${l.type})</option>
+            `).join('');
+        }
+
+        if (showSelect) {
+            if (!this.showsList || this.showsList.length === 0) {
+                showSelect.innerHTML = '<option value="">(No TV series found - create a TV Series first)</option>';
+            } else {
+                showSelect.innerHTML = this.showsList.map(s => `
+                    <option value="${s.id}">${s.title} (${s.year || 'Series'})</option>
+                `).join('');
+            }
+        }
+
+        if (preselectLibId !== null && libSelect) {
+            libSelect.value = preselectLibId;
+            const chosen = (this.libraries || []).find(l => l.id === preselectLibId);
+            if (chosen && typeSelect) {
+                typeSelect.value = chosen.type === 'tvshows' ? 'show' : 'movie';
+            }
+        }
+
+        this.onMediaTypeChange();
+    }
+
     switchAddMediaTab(tab) {
         const tabSingle = document.getElementById('tabBtnAddSingle');
+        const tabBulk = document.getElementById('tabBtnBulkAdd');
         const tabScan = document.getElementById('tabBtnScanStorage');
         const contentSingle = document.getElementById('tabContentAddSingle');
+        const contentBulk = document.getElementById('tabContentBulkAdd');
         const contentScan = document.getElementById('tabContentScanStorage');
 
+        [tabSingle, tabBulk, tabScan].forEach(btn => btn?.classList.remove('active'));
+        [contentSingle, contentBulk, contentScan].forEach(cnt => cnt?.classList.remove('active'));
+
         if (tab === 'single') {
-            if (tabSingle) tabSingle.classList.add('active');
-            if (tabScan) tabScan.classList.remove('active');
-            if (contentSingle) contentSingle.classList.add('active');
-            if (contentScan) contentScan.classList.remove('active');
+            tabSingle?.classList.add('active');
+            contentSingle?.classList.add('active');
+            this.populateAddMediaOptions();
+        } else if (tab === 'bulk') {
+            tabBulk?.classList.add('active');
+            contentBulk?.classList.add('active');
+            this.populateBulkOptions();
         } else {
-            if (tabSingle) tabSingle.classList.remove('active');
-            if (tabScan) tabScan.classList.add('active');
-            if (contentSingle) contentSingle.classList.remove('active');
-            if (contentScan) contentScan.classList.add('active');
+            tabScan?.classList.add('active');
+            contentScan?.classList.add('active');
             this.loadLibraries();
+        }
+    }
+
+    populateBulkOptions() {
+        const select = document.getElementById('bulkAddLibrarySelect');
+        if (select) {
+            select.innerHTML = (this.libraries || []).map(l => `
+                <option value="${l.id}">${l.name} (${l.type.toUpperCase()}) - ${l.path}</option>
+            `).join('');
+        }
+    }
+
+    async submitBulkFolderImport() {
+        const select = document.getElementById('bulkAddLibrarySelect');
+        const libraryId = select ? parseInt(select.value) : null;
+        const folderPath = document.getElementById('bulkAddFolderPath')?.value.trim();
+
+        if (!libraryId) {
+            this.showToast('Please select a destination library', 'error');
+            return;
+        }
+        if (!folderPath) {
+            this.showToast('Please provide a server directory path', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btnRunBulkFolderImport');
+        const progressCard = document.getElementById('bulkImportProgressCard');
+        const statusText = document.getElementById('bulkImportStatusText');
+        const stats = document.getElementById('bulkImportStats');
+
+        if (btn) btn.disabled = true;
+        if (progressCard) progressCard.style.display = 'block';
+        if (statusText) statusText.innerText = `Scanning & importing from: ${folderPath}...`;
+        if (stats) stats.innerText = 'Analyzing directory structure and technical media streams...';
+
+        this.showToast('🚀 Bulk import in progress...', 'info');
+
+        try {
+            const res = await fetch('/api/media/bulk-add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    library_id: libraryId,
+                    mode: 'folder',
+                    folder_path: folderPath
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                const added = data.added_count || 0;
+                const scanned = data.scanned_count || 0;
+                this.showToast(`🎉 Bulk imported ${added} media items! (Scanned: ${scanned})`, 'success');
+                if (stats) stats.innerText = `Complete: Added ${added} new items from ${scanned} scanned files.`;
+                await this.loadCatalog();
+                await this.loadLibraries();
+            } else {
+                this.showToast(data.detail || 'Bulk import failed', 'error');
+                if (stats) stats.innerText = `Error: ${data.detail || 'Failed'}`;
+            }
+        } catch (e) {
+            this.showToast(`Error: ${e.message}`, 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async submitBulkListImport() {
+        const select = document.getElementById('bulkAddLibrarySelect');
+        const libraryId = select ? parseInt(select.value) : null;
+        const text = document.getElementById('bulkAddTextList')?.value.trim();
+
+        if (!libraryId) {
+            this.showToast('Please select a destination library', 'error');
+            return;
+        }
+        if (!text) {
+            this.showToast('Please enter at least one file path or stream URL', 'error');
+            return;
+        }
+
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        if (lines.length === 0) return;
+
+        const btn = document.getElementById('btnRunBulkListImport');
+        const progressCard = document.getElementById('bulkImportProgressCard');
+        const statusText = document.getElementById('bulkImportStatusText');
+        const stats = document.getElementById('bulkImportStats');
+
+        if (btn) btn.disabled = true;
+        if (progressCard) progressCard.style.display = 'block';
+        if (statusText) statusText.innerText = `Importing ${lines.length} items...`;
+        if (stats) stats.innerText = 'Extracting media metadata...';
+
+        try {
+            const res = await fetch('/api/media/bulk-add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    library_id: libraryId,
+                    mode: 'list',
+                    items: lines
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                const added = data.added_count || 0;
+                this.showToast(`✨ Successfully imported ${added} items!`, 'success');
+                document.getElementById('bulkAddTextList').value = '';
+                if (stats) stats.innerText = `Done: Added ${added} of ${lines.length} items.`;
+                await this.loadCatalog();
+                await this.loadLibraries();
+            } else {
+                this.showToast(data.detail || 'Failed to import items', 'error');
+            }
+        } catch (e) {
+            this.showToast(`Error: ${e.message}`, 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    bulkImportFromBrowser() {
+        if (this.currentBrowserPath) {
+            const path = this.currentBrowserPath;
+            this.closeFolderBrowser();
+            this.openAddMediaModal('bulk');
+            const folderInput = document.getElementById('bulkAddFolderPath');
+            if (folderInput) folderInput.value = path;
         }
     }
 
     onMediaTypeChange() {
         const type = document.getElementById('addMediaType')?.value || 'movie';
+        const groupLib = document.getElementById('groupLibrarySelect');
+        const groupShow = document.getElementById('groupEpisodeSeriesSelect');
+        const groupEpNums = document.getElementById('groupEpisodeNumbers');
+        const groupMeta = document.getElementById('groupMovieMeta');
+        const groupDirCast = document.getElementById('groupDirectorCast');
+        const labelTitle = document.getElementById('labelMediaTitle');
         const libSelect = document.getElementById('addMediaLibrarySelect');
-        if (!libSelect) return;
-        for (let opt of libSelect.options) {
-            const optType = opt.getAttribute('data-type');
-            if ((type === 'movie' && optType === 'movies') || (type === 'show' && optType === 'tvshows')) {
-                libSelect.value = opt.value;
-                break;
+
+        if (type === 'movie') {
+            if (groupLib) groupLib.style.display = 'block';
+            if (groupShow) groupShow.style.display = 'none';
+            if (groupEpNums) groupEpNums.style.display = 'none';
+            if (groupMeta) groupMeta.style.display = 'grid';
+            if (groupDirCast) groupDirCast.style.display = 'grid';
+            if (labelTitle) labelTitle.innerHTML = 'Movie Title <span style="color: var(--amber-gold);">*</span>';
+
+            if (libSelect && libSelect.selectedOptions && libSelect.selectedOptions[0]) {
+                const curType = libSelect.selectedOptions[0].getAttribute('data-type');
+                if (curType !== 'movies') {
+                    for (let opt of libSelect.options) {
+                        if (opt.getAttribute('data-type') === 'movies') {
+                            libSelect.value = opt.value;
+                            break;
+                        }
+                    }
+                }
             }
+        } else if (type === 'show') {
+            if (groupLib) groupLib.style.display = 'block';
+            if (groupShow) groupShow.style.display = 'none';
+            if (groupEpNums) groupEpNums.style.display = 'none';
+            if (groupMeta) groupMeta.style.display = 'grid';
+            if (groupDirCast) groupDirCast.style.display = 'grid';
+            if (labelTitle) labelTitle.innerHTML = 'Series Title <span style="color: var(--amber-gold);">*</span>';
+
+            if (libSelect && libSelect.selectedOptions && libSelect.selectedOptions[0]) {
+                const curType = libSelect.selectedOptions[0].getAttribute('data-type');
+                if (curType !== 'tvshows') {
+                    for (let opt of libSelect.options) {
+                        if (opt.getAttribute('data-type') === 'tvshows') {
+                            libSelect.value = opt.value;
+                            break;
+                        }
+                    }
+                }
+            }
+        } else if (type === 'episode') {
+            if (groupLib) groupLib.style.display = 'none';
+            if (groupShow) groupShow.style.display = 'block';
+            if (groupEpNums) groupEpNums.style.display = 'grid';
+            if (groupMeta) groupMeta.style.display = 'none';
+            if (groupDirCast) groupDirCast.style.display = 'none';
+            if (labelTitle) labelTitle.innerHTML = 'Episode Title <span style="color: var(--amber-gold);">*</span>';
         }
     }
 
@@ -578,24 +1119,14 @@ class NovaFlixApp {
     }
 
     async submitAddMedia() {
-        const title = document.getElementById('addMediaTitle')?.value.trim();
         const type = document.getElementById('addMediaType')?.value || 'movie';
-        const year = parseInt(document.getElementById('addMediaYear')?.value) || 2026;
-        const rating = parseFloat(document.getElementById('addMediaRating')?.value) || 8.5;
-        const genre = document.getElementById('addMediaGenre')?.value.trim() || 'Cinema';
+        const title = document.getElementById('addMediaTitle')?.value.trim();
         const filePath = document.getElementById('addMediaFilePath')?.value.trim() || '';
         const streamUrl = document.getElementById('addMediaStreamUrl')?.value.trim() || '';
-        const poster = document.getElementById('addMediaPoster')?.value.trim() || '';
         const synopsis = document.getElementById('addMediaSynopsis')?.value.trim() || '';
-        const libSelect = document.getElementById('addMediaLibrarySelect');
-        const libraryId = libSelect ? parseInt(libSelect.value) : 1;
 
         if (!title) {
             this.showToast('Title is required', 'error');
-            return;
-        }
-        if (!filePath && !streamUrl) {
-            this.showToast('Provide either a local file path or stream URL', 'error');
             return;
         }
 
@@ -603,31 +1134,87 @@ class NovaFlixApp {
         if (btn) btn.disabled = true;
 
         try {
-            const res = await fetch('/api/media/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title,
-                    type,
-                    year,
-                    rating,
-                    genre,
-                    file_path: filePath,
-                    stream_url: streamUrl,
-                    poster,
-                    synopsis,
-                    library_id: libraryId
-                })
-            });
+            if (type === 'episode') {
+                const showSelect = document.getElementById('addMediaParentShowSelect');
+                const showId = showSelect ? parseInt(showSelect.value) : null;
+                if (!showId) {
+                    this.showToast('Please select a target TV Series', 'error');
+                    if (btn) btn.disabled = false;
+                    return;
+                }
+                if (!filePath && !streamUrl) {
+                    this.showToast('Provide either a local file path or stream URL', 'error');
+                    if (btn) btn.disabled = false;
+                    return;
+                }
+                const seasonNumber = parseInt(document.getElementById('addMediaSeasonNum')?.value) || 1;
+                const episodeNumber = parseInt(document.getElementById('addMediaEpisodeNum')?.value) || 1;
 
-            const data = await res.json();
-            if (res.ok) {
-                this.showToast(`✨ Added "${title}" to your library!`, 'success');
-                this.closeAddMediaModal();
-                document.getElementById('formAddMedia')?.reset();
-                await this.loadCatalog();
+                const res = await fetch(`/api/shows/${showId}/episodes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title,
+                        season_number: seasonNumber,
+                        episode_number: episodeNumber,
+                        file_path: filePath,
+                        stream_url: streamUrl,
+                        synopsis
+                    })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    this.showToast(`✨ Added S${seasonNumber}E${episodeNumber} "${title}"!`, 'success');
+                    this.closeAddMediaModal();
+                    document.getElementById('formAddMedia')?.reset();
+                    await this.loadCatalog();
+                } else {
+                    this.showToast(data.detail || 'Failed to add episode', 'error');
+                }
             } else {
-                this.showToast(data.detail || 'Failed to add media item', 'error');
+                if (!filePath && !streamUrl) {
+                    this.showToast('Provide either a local file path or stream URL', 'error');
+                    if (btn) btn.disabled = false;
+                    return;
+                }
+                const year = parseInt(document.getElementById('addMediaYear')?.value) || 2026;
+                const rating = parseFloat(document.getElementById('addMediaRating')?.value) || 8.5;
+                const genre = document.getElementById('addMediaGenre')?.value.trim() || 'Cinema';
+                const director = document.getElementById('addMediaDirector')?.value.trim() || '';
+                const cast = document.getElementById('addMediaCast')?.value.trim() || '';
+                const poster = document.getElementById('addMediaPoster')?.value.trim() || '';
+                const libSelect = document.getElementById('addMediaLibrarySelect');
+                const libraryId = libSelect ? parseInt(libSelect.value) : 1;
+
+                const res = await fetch('/api/media/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title,
+                        type,
+                        year,
+                        rating,
+                        genre,
+                        director,
+                        cast,
+                        file_path: filePath,
+                        stream_url: streamUrl,
+                        poster,
+                        synopsis,
+                        library_id: libraryId
+                    })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    this.showToast(`✨ Added ${type === 'show' ? 'Series' : 'Movie'} "${title}"!`, 'success');
+                    this.closeAddMediaModal();
+                    document.getElementById('formAddMedia')?.reset();
+                    await this.loadCatalog();
+                } else {
+                    this.showToast(data.detail || 'Failed to add media item', 'error');
+                }
             }
         } catch (e) {
             this.showToast(`Error: ${e.message}`, 'error');
@@ -662,6 +1249,7 @@ class NovaFlixApp {
         try {
             const res = await fetch('/api/libraries');
             const libs = await res.json();
+            this.libraries = libs || [];
 
             if (libSelect) {
                 libSelect.innerHTML = libs.map(l => `
@@ -711,6 +1299,7 @@ class NovaFlixApp {
             if (res.ok) {
                 this.showToast(`Configured library: ${name}`, 'success');
                 await this.loadLibraries();
+                await this.loadCatalog();
                 this.startLibraryScan();
             } else {
                 const data = await res.json();
@@ -742,6 +1331,7 @@ class NovaFlixApp {
                 document.getElementById('newLibName').value = '';
                 document.getElementById('newLibPath').value = '';
                 await this.loadLibraries();
+                await this.loadCatalog();
             } else {
                 const data = await res.json();
                 this.showToast(data.detail || 'Failed to create library', 'error');
@@ -758,6 +1348,7 @@ class NovaFlixApp {
             if (res.ok) {
                 this.showToast(`Library "${name}" deleted`, 'info');
                 await this.loadLibraries();
+                await this.loadCatalog();
             }
         } catch (e) {
             this.showToast(`Error: ${e.message}`, 'error');
@@ -845,6 +1436,16 @@ class NovaFlixApp {
 
             if (currentPathEl) currentPathEl.innerText = data.current_path;
             if (btnParent) btnParent.disabled = !data.parent_path;
+
+            const btnBulk = document.getElementById('btnBrowserBulkImport');
+            if (btnBulk) {
+                if (data.video_files && data.video_files.length > 0) {
+                    btnBulk.style.display = 'inline-flex';
+                    btnBulk.innerText = `+ Bulk Import Folder (${data.video_files.length} videos)`;
+                } else {
+                    btnBulk.style.display = 'none';
+                }
+            }
 
             if (list) {
                 let html = '';

@@ -86,7 +86,33 @@ class NovaFlixPortal {
     }
 
     triggerDownload(filename) {
-        alert(`Starting download for ${filename}...\n\nOnce downloaded, run the installer to start your sovereign NovaFlix server on port 8096!`);
+        let downloadUrl = `/downloads/${filename}`;
+        if (filename.startsWith('http://') || filename.startsWith('https://')) {
+            downloadUrl = filename;
+        } else if (filename.startsWith('/')) {
+            downloadUrl = filename;
+        }
+        
+        // Trigger browser download
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    copyCommand(text, btnId) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById(btnId);
+                if (btn) {
+                    const orig = btn.innerText;
+                    btn.innerText = 'Copied!';
+                    setTimeout(() => { btn.innerText = orig; }, 2500);
+                }
+            });
+        }
     }
 }
 

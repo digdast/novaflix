@@ -71,7 +71,7 @@ def probe_file(file_path: Path) -> Dict[str, Any]:
         cmd = [
             "ffprobe",
             "-v", "error",
-            "-show_entries", "stream=width,height,codec_name,channels",
+            "-show_entries", "stream=width,height,codec_name,channels,codec_type",
             "-show_entries", "format=duration",
             "-of", "json",
             str(file_path)
@@ -91,31 +91,40 @@ def probe_file(file_path: Path) -> Dict[str, Any]:
 
             streams = data.get("streams", [])
             for s in streams:
-                codec = s.get("codec_name", "")
+                codec = s.get("codec_name", "").lower()
+                codec_type = s.get("codec_type", "")
                 w = s.get("width")
-                if w:
-                    if w >= 3800:
-                        metadata["resolution"] = "4K UHD"
-                    elif w >= 1900:
-                        metadata["resolution"] = "1080p FHD"
-                    elif w >= 1200:
-                        metadata["resolution"] = "720p HD"
-                    else:
-                        metadata["resolution"] = "SD"
+                if codec_type == "video" or w:
+                    if w:
+                        if w >= 3800:
+                            metadata["resolution"] = "4K UHD"
+                        elif w >= 1900:
+                            metadata["resolution"] = "1080p FHD"
+                        elif w >= 1200:
+                            metadata["resolution"] = "720p HD"
+                        else:
+                            metadata["resolution"] = "SD"
 
-                    if codec == "hevc":
+                    if codec in ("hevc", "h265"):
                         metadata["video_codec"] = "HEVC / H.265"
                     elif codec in ("h264", "avc1"):
                         metadata["video_codec"] = "H.264"
                     elif codec:
                         metadata["video_codec"] = codec.upper()
-                elif "channels" in s or not w:
+                elif codec_type == "audio" or "channels" in s:
+                    # Ignore subtitle tracks or data tracks completely
+                    if codec in ("subrip", "ass", "mov_text", "bin_data", "hdmv_pgs_subtitle", "timed_id3", "ttf"):
+                        continue
+                    ch = s.get("channels", 2)
+                    ch_suffix = " 5.1" if ch >= 6 else (" 7.1" if ch >= 8 else " Stereo")
                     if codec in ("ac3", "eac3"):
-                        metadata["audio_codec"] = "Dolby Digital 5.1"
+                        metadata["audio_codec"] = f"Dolby Digital{ch_suffix}"
                     elif "dts" in codec:
-                        metadata["audio_codec"] = "DTS-HD"
+                        metadata["audio_codec"] = f"DTS-HD{ch_suffix}"
+                    elif codec == "aac":
+                        metadata["audio_codec"] = f"AAC{ch_suffix}"
                     elif codec:
-                        metadata["audio_codec"] = f"{codec.upper()} Stereo"
+                        metadata["audio_codec"] = f"{codec.upper()}{ch_suffix}"
     except Exception as e:
         logger.debug(f"ffprobe probe skipped for {file_path.name}: {e}")
 

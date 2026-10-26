@@ -209,9 +209,12 @@ class Database:
             """).fetchone()
             return dict(row) if row else None
 
-    def get_movies(self, limit: int = 50, offset: int = 0, search: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_movies(self, limit: int = 50, offset: int = 0, search: Optional[str] = None, library_id: Optional[int] = None) -> List[Dict[str, Any]]:
         query = "SELECT * FROM media_items WHERE type = 'movie'"
         params = []
+        if library_id:
+            query += " AND library_id = ?"
+            params.append(library_id)
         if search:
             query += " AND (title LIKE ? OR genre LIKE ? OR director LIKE ?)"
             params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
@@ -222,9 +225,12 @@ class Database:
             rows = conn.execute(query, params).fetchall()
             return [dict(r) for r in rows]
 
-    def get_shows(self, limit: int = 50, offset: int = 0, search: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_shows(self, limit: int = 50, offset: int = 0, search: Optional[str] = None, library_id: Optional[int] = None) -> List[Dict[str, Any]]:
         query = "SELECT * FROM media_items WHERE type = 'show'"
         params = []
+        if library_id:
+            query += " AND library_id = ?"
+            params.append(library_id)
         if search:
             query += " AND (title LIKE ? OR genre LIKE ?)"
             params.extend([f"%{search}%", f"%{search}%"])
@@ -234,6 +240,60 @@ class Database:
         with self.get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
             return [dict(r) for r in rows]
+
+    def get_library_items(self, library_id: int, limit: int = 50, offset: int = 0, search: Optional[str] = None) -> List[Dict[str, Any]]:
+        query = "SELECT * FROM media_items WHERE library_id = ? AND type IN ('movie', 'show')"
+        params = [library_id]
+        if search:
+            query += " AND (title LIKE ? OR genre LIKE ?)"
+            params.extend([f"%{search}%", f"%{search}%"])
+        query += " ORDER BY year DESC, rating DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        with self.get_connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_all_shows_list(self) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            rows = conn.execute("SELECT id, title, year, poster, library_id FROM media_items WHERE type = 'show' ORDER BY title ASC").fetchall()
+            return [dict(r) for r in rows]
+
+    def add_episode(self, show_id: int, title: str, season_number: int, episode_number: int,
+                    duration: Optional[str] = None, duration_seconds: int = 0,
+                    file_path: Optional[str] = None, stream_url: Optional[str] = None,
+                    synopsis: Optional[str] = None, resolution: str = "1080p FHD",
+                    audio_codec: str = "AAC 5.1", video_codec: str = "H.264") -> int:
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        show = self.get_item_by_id(show_id)
+        if not show:
+            raise ValueError("Show not found")
+
+        with self.get_connection() as conn:
+            cursor = conn.execute("""
+            INSERT INTO media_items (
+                library_id, title, original_title, type, parent_id, season_number, episode_number,
+                year, rating, duration, duration_seconds, genre, synopsis,
+                poster, backdrop, file_path, stream_url, resolution, audio_codec, video_codec,
+                content_rating, added_at
+            ) VALUES (?, ?, ?, 'episode', ?, ?, ?, ?, 8.5, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TV-MA', ?)
+            """, (
+                show["library_id"], title, title, show_id, season_number, episode_number,
+                show.get("year", 2026), duration or "45m", duration_seconds, show.get("genre", "Drama"),
+                synopsis or f"Season {season_number}, Episode {episode_number} of {show['title']}.",
+                show.get("poster"), show.get("backdrop"), file_path, stream_url, resolution,
+                audio_codec, video_codec, now_str
+            ))
+            ep_id = cursor.lastrowid
+
+            # Recalculate season count on parent show
+            seasons_res = conn.execute("SELECT COUNT(DISTINCT season_number) FROM media_items WHERE parent_id = ?", (show_id,)).fetchone()
+            s_count = max(1, seasons_res[0] if seasons_res else 1)
+            s_str = f"{s_count} Season" if s_count == 1 else f"{s_count} Seasons"
+            conn.execute("UPDATE media_items SET duration = ? WHERE id = ?", (s_str, show_id))
+            conn.commit()
+            return ep_id
+
 
     def get_item_by_id(self, item_id: int) -> Optional[Dict[str, Any]]:
         with self.get_connection() as conn:

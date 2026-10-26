@@ -35,7 +35,7 @@ from novaflix.streaming import StreamService
 from novaflix.auth import hash_password, verify_password, create_session_token, verify_session_token
 from novaflix.remote import RemoteAccessService
 from novaflix.syncplay import syncplay_manager
-from novaflix.scanner import scanner, probe_file
+from novaflix.scanner import scanner, probe_file, parse_movie_name, parse_tv_episode
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -67,17 +67,87 @@ async def get_featured():
 async def get_movies(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    search: Optional[str] = Query(None)
+    search: Optional[str] = Query(None),
+    library_id: Optional[int] = Query(None)
 ):
-    return db.get_movies(limit=limit, offset=offset, search=search)
+    return db.get_movies(limit=limit, offset=offset, search=search, library_id=library_id)
 
 @app.get("/api/media/shows")
 async def get_shows(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    search: Optional[str] = Query(None),
+    library_id: Optional[int] = Query(None)
+):
+    return db.get_shows(limit=limit, offset=offset, search=search, library_id=library_id)
+
+@app.get("/api/shows/list")
+async def get_all_shows_list_endpoint():
+    """List all TV shows for dropdown selection when adding episodes."""
+    return db.get_all_shows_list()
+
+@app.get("/api/libraries/{library_id}/items")
+async def get_library_items_endpoint(
+    library_id: int,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     search: Optional[str] = Query(None)
 ):
-    return db.get_shows(limit=limit, offset=offset, search=search)
+    """Retrieve all movies and shows belonging to a specific library."""
+    return db.get_library_items(library_id=library_id, limit=limit, offset=offset, search=search)
+
+class AddEpisodePayload(BaseModel):
+    title: str
+    season_number: int = 1
+    episode_number: int = 1
+    duration: Optional[str] = None
+    file_path: Optional[str] = None
+    stream_url: Optional[str] = None
+    synopsis: Optional[str] = None
+
+@app.post("/api/shows/{show_id}/episodes")
+async def add_episode_endpoint(show_id: int, payload: AddEpisodePayload):
+    """Manually add an episode to an existing TV series."""
+    file_path = payload.file_path.strip() if payload.file_path else None
+    stream_url = payload.stream_url.strip() if payload.stream_url else None
+    if not file_path and not stream_url:
+        raise HTTPException(status_code=400, detail="Must provide either local file_path or stream_url")
+
+    duration = payload.duration
+    duration_seconds = 0
+    resolution = "1080p FHD"
+    video_codec = "H.264"
+    audio_codec = "AAC 5.1"
+
+    if file_path:
+        p = Path(file_path)
+        if p.exists() and p.is_file():
+            probe = probe_file(p)
+            duration = duration or probe["duration"]
+            duration_seconds = probe["duration_seconds"]
+            resolution = probe["resolution"]
+            video_codec = probe["video_codec"]
+            audio_codec = probe["audio_codec"]
+
+    try:
+        ep_id = db.add_episode(
+            show_id=show_id,
+            title=payload.title,
+            season_number=payload.season_number,
+            episode_number=payload.episode_number,
+            duration=duration or "45m",
+            duration_seconds=duration_seconds,
+            file_path=file_path,
+            stream_url=stream_url,
+            synopsis=payload.synopsis,
+            resolution=resolution,
+            audio_codec=audio_codec,
+            video_codec=video_codec
+        )
+        return {"status": "success", "id": ep_id, "show_id": show_id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @app.get("/api/media/item/{item_id}")
 async def get_item(item_id: int):
@@ -294,6 +364,159 @@ async def add_media_endpoint(payload: AddMediaPayload):
     item_id = db.add_media_item(item_data)
     created_item = db.get_item_by_id(item_id)
     return {"status": "success", "id": item_id, "item": created_item}
+
+class BulkAddPayload(BaseModel):
+    library_id: int
+    mode: str = "folder"  # "folder", "list", or "files"
+    folder_path: Optional[str] = None
+    items: Optional[List[str]] = None
+    recursive: bool = True
+
+@app.post("/api/media/bulk-add")
+async def bulk_add_media_endpoint(payload: BulkAddPayload):
+    """
+    Bulk import media into a library from:
+    1) Server directory scan ('folder')
+    2) Pasted list of paths/URLs ('list')
+    3) Selected file paths ('files')
+    """
+    lib = db.get_library_by_id(payload.library_id)
+    if not lib:
+        raise HTTPException(status_code=404, detail="Library not found")
+
+    added_count = 0
+    errors = []
+
+    if payload.mode == "folder":
+        if not payload.folder_path:
+            raise HTTPException(status_code=400, detail="Folder path is required")
+        p = Path(payload.folder_path)
+        if not p.exists() or not p.is_dir():
+            raise HTTPException(status_code=400, detail=f"Directory not found: {payload.folder_path}")
+
+        result = scanner.scan_path(payload.folder_path, lib_type=lib["type"], library_id=payload.library_id)
+        return {
+            "status": "success",
+            "mode": "folder",
+            "added_count": result.get("added", 0),
+            "scanned_count": result.get("scanned", 0),
+            "library_id": payload.library_id,
+            "errors": result.get("errors", [])
+        }
+
+    elif payload.mode in ("list", "files"):
+        raw_items = payload.items or []
+        for line in raw_items:
+            line_str = str(line).strip()
+            if not line_str:
+                continue
+            try:
+                is_url = line_str.startswith("http://") or line_str.startswith("https://")
+                file_path = "" if is_url else line_str
+                stream_url = line_str if is_url else ""
+
+                if is_url:
+                    parsed_url_path = urllib.parse.urlparse(stream_url).path
+                    base_name = Path(parsed_url_path).stem or "Stream Item"
+                    folder_name = ""
+                else:
+                    p = Path(file_path)
+                    base_name = p.name
+                    folder_name = p.parent.name if p.parent != p else ""
+
+                if lib["type"] == "movies":
+                    title, year = parse_movie_name(folder_name, base_name)
+                    probe = probe_file(Path(file_path)) if file_path and Path(file_path).exists() else {
+                        "duration": "2h",
+                        "duration_seconds": 7200,
+                        "resolution": "1080p FHD",
+                        "audio_codec": "AAC Stereo",
+                        "video_codec": "H.264"
+                    }
+                    poster = f"/api/media/poster/generated?title={urllib.parse.quote(title)}&year={year or 2026}&genre=Cinema"
+                    item_data = {
+                        "library_id": payload.library_id,
+                        "title": title,
+                        "original_title": title,
+                        "type": "movie",
+                        "parent_id": None,
+                        "season_number": 0,
+                        "episode_number": 0,
+                        "year": year or 2026,
+                        "rating": 8.5,
+                        "duration": probe.get("duration", "2h"),
+                        "duration_seconds": probe.get("duration_seconds", 7200),
+                        "genre": "Cinema",
+                        "director": "NovaFlix",
+                        "cast": "Direct Stream Master",
+                        "synopsis": f"Bulk imported movie: {title}",
+                        "poster": poster,
+                        "backdrop": poster,
+                        "file_path": file_path,
+                        "stream_url": stream_url,
+                        "resolution": probe.get("resolution", "1080p FHD"),
+                        "audio_codec": probe.get("audio_codec", "AAC Stereo"),
+                        "video_codec": probe.get("video_codec", "H.264"),
+                        "content_rating": "PG-13"
+                    }
+                    db.add_media_item(item_data)
+                    added_count += 1
+                else:
+                    # TV Series
+                    season_num, ep_num, ep_title = parse_tv_episode(base_name)
+                    show_title, show_year = parse_movie_name(folder_name, "")
+                    if not show_title or show_title == "Unknown":
+                        show_title = Path(folder_name).stem if folder_name else "TV Series"
+
+                    show = db.get_show_by_title(show_title)
+                    if not show:
+                        show_poster = f"/api/media/poster/generated?title={urllib.parse.quote(show_title)}&genre=Series"
+                        show_id = db.add_show(
+                            title=show_title,
+                            year=show_year or 2026,
+                            rating=8.7,
+                            genre="Series",
+                            synopsis=f"TV series imported: {show_title}",
+                            poster=show_poster,
+                            backdrop=show_poster,
+                            library_id=payload.library_id
+                        )
+                    else:
+                        show_id = show["id"]
+
+                    probe = probe_file(Path(file_path)) if file_path and Path(file_path).exists() else {
+                        "duration": "45m",
+                        "duration_seconds": 2700,
+                        "resolution": "1080p FHD",
+                        "audio_codec": "AAC Stereo",
+                        "video_codec": "H.264"
+                    }
+                    ep_poster = f"/api/media/poster/generated?title={urllib.parse.quote(show_title)}&genre=Series"
+                    db.add_episode(
+                        show_id=show_id,
+                        title=ep_title,
+                        season_number=season_num,
+                        episode_number=ep_num,
+                        duration=probe.get("duration", "45m"),
+                        duration_seconds=probe.get("duration_seconds", 2700),
+                        file_path=file_path,
+                        stream_url=stream_url,
+                        synopsis=f"Season {season_num}, Episode {ep_num} of {show_title}.",
+                        resolution=probe.get("resolution", "1080p FHD"),
+                        audio_codec=probe.get("audio_codec", "AAC Stereo"),
+                        video_codec=probe.get("video_codec", "H.264")
+                    )
+                    added_count += 1
+            except Exception as ex:
+                errors.append(f"{line_str}: {str(ex)}")
+
+        return {
+            "status": "success",
+            "mode": payload.mode,
+            "added_count": added_count,
+            "library_id": payload.library_id,
+            "errors": errors[:5]
+        }
 
 @app.delete("/api/media/item/{item_id}")
 async def delete_media_endpoint(item_id: int):
@@ -563,31 +786,74 @@ async def serve_download_portal(request: Request):
         }
     )
 
+@app.get("/install.sh")
+async def get_install_script():
+    """Universal Linux & macOS 1-line installation script."""
+    script_path = BASE_DIR / "static" / "install.sh"
+    if script_path.exists():
+        return FileResponse(script_path, media_type="text/x-shellscript")
+    raise HTTPException(status_code=404, detail="Install script not found")
+
+@app.get("/install.ps1")
+async def get_install_ps1():
+    """Windows PowerShell 1-line installation script."""
+    script_path = BASE_DIR / "static" / "install.ps1"
+    if script_path.exists():
+        return FileResponse(script_path, media_type="text/plain")
+    raise HTTPException(status_code=404, detail="Windows script not found")
+
+@app.get("/downloads/{filename}")
+async def download_package_file(filename: str):
+    """Direct download for Debian (.deb), portable zip, and packages."""
+    downloads_dir = BASE_DIR / "static" / "downloads"
+    target = downloads_dir / filename
+
+    if not target.exists():
+        # Alias resolution
+        if filename.endswith(".deb"):
+            debs = list(downloads_dir.glob("*.deb"))
+            if debs:
+                target = debs[0]
+        elif "zip" in filename.lower():
+            zips = list(downloads_dir.glob("*.zip"))
+            if zips:
+                target = zips[0]
+        elif "tar" in filename.lower():
+            tars = list(downloads_dir.glob("*.tar.gz"))
+            if tars:
+                target = tars[0]
+
+    if target.exists() and target.is_file():
+        mime, _ = mimetypes.guess_type(str(target))
+        return FileResponse(
+            target,
+            media_type=mime or "application/octet-stream",
+            filename=target.name
+        )
+
+    raise HTTPException(status_code=404, detail=f"Download file not found: {filename}")
+
 @app.get("/api/downloads")
 async def get_download_variants():
     """Download matrix for Windows, macOS, Linux, and Docker."""
     return {
+        "quick_install": {
+            "linux_mac": "curl -fsSL https://novaflix.ertechlab.com/install.sh | bash",
+            "windows": "irm https://novaflix.ertechlab.com/install.ps1 | iex"
+        },
         "windows": {
             "version": "1.0.0",
             "files": [
-                {"name": "NovaFlix-Setup-x64.exe", "type": "Installer", "size": "48.2 MB", "url": "/static/downloads/NovaFlix-Setup-x64.exe"},
-                {"name": "NovaFlix-Portable-x64.zip", "type": "Portable Zip", "size": "42.1 MB", "url": "/static/downloads/NovaFlix-Portable.zip"},
-                {"name": "run.bat", "type": "1-Click Script", "size": "1.2 KB", "url": "https://raw.githubusercontent.com/digdast/novaflix/main/run.bat"}
-            ]
-        },
-        "macos": {
-            "version": "1.0.0",
-            "files": [
-                {"name": "NovaFlix-Universal.dmg", "type": "Apple Silicon & Intel", "size": "56.4 MB", "url": "/static/downloads/NovaFlix-Universal.dmg"},
-                {"name": "Homebrew Formula", "type": "CLI", "size": "brew install digdast/novaflix/novaflix", "url": "#"}
+                {"name": "NovaFlix-Portable.zip", "type": "Portable Zip", "size": "32 MB", "url": "/downloads/NovaFlix-Portable.zip"},
+                {"name": "install.ps1", "type": "1-Click PowerShell Setup", "size": "1.5 KB", "url": "/install.ps1"}
             ]
         },
         "linux": {
             "version": "1.0.0",
             "files": [
-                {"name": "novaflix_1.0.0_amd64.deb", "type": "Debian / Ubuntu", "size": "38.5 MB", "url": "/static/downloads/novaflix_amd64.deb"},
-                {"name": "novaflix-1.0.0-1.x86_64.rpm", "type": "RHEL / Fedora", "size": "39.1 MB", "url": "/static/downloads/novaflix.rpm"},
-                {"name": "run.sh", "type": "Universal Script", "size": "1.4 KB", "url": "https://raw.githubusercontent.com/digdast/novaflix/main/run.sh"}
+                {"name": "novaflix_1.0.0_all.deb", "type": "Debian / Ubuntu (.deb)", "size": "28 MB", "url": "/downloads/novaflix_1.0.0_all.deb"},
+                {"name": "novaflix-linux-x64.tar.gz", "type": "Linux Tarball", "size": "29 MB", "url": "/downloads/novaflix-linux-x64.tar.gz"},
+                {"name": "install.sh", "type": "Universal 1-Line Installer", "size": "3.8 KB", "url": "/install.sh"}
             ]
         },
         "docker": {
