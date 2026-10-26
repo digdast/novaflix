@@ -91,15 +91,24 @@ class NovaFlixPortal {
             downloadUrl = filename;
         } else if (filename.startsWith('/')) {
             downloadUrl = filename;
+        } else if (filename === 'install.sh') {
+            downloadUrl = '/install.sh';
+        } else if (filename === 'install.ps1') {
+            downloadUrl = '/install.ps1';
         }
         
         // Trigger browser download
         const a = document.createElement('a');
         a.href = downloadUrl;
-        a.download = filename;
+        a.setAttribute('download', filename);
+        a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
+        setTimeout(() => {
+            if (document.body.contains(a)) {
+                document.body.removeChild(a);
+            }
+        }, 500);
     }
 
     copyCommand(text, btnId) {

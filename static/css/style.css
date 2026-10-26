@@ -1162,17 +1162,23 @@ body {
    ========================================================================== */
 
 .library-filter-section {
-    padding: 24px 60px 0;
-    margin-bottom: 8px;
+    padding: 0 0 28px 0;
+    margin-bottom: 12px;
+    width: 100%;
 }
 
 .library-filter-wrap {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     overflow-x: auto;
-    padding-bottom: 8px;
+    padding: 10px 16px;
     scrollbar-width: none;
+    background: rgba(14, 18, 30, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 .library-filter-wrap::-webkit-scrollbar {
@@ -1190,8 +1196,8 @@ body {
     align-items: center;
     gap: 8px;
     padding: 8px 18px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--border-subtle);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 999px;
     color: var(--text-secondary);
     font-family: var(--font-sans);
@@ -1200,26 +1206,28 @@ body {
     cursor: pointer;
     white-space: nowrap;
     transition: var(--transition);
+    outline: none;
 }
 
 .lib-pill:hover {
-    background: rgba(255, 255, 255, 0.09);
+    background: rgba(255, 255, 255, 0.12);
     color: #ffffff;
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.25);
     transform: translateY(-1px);
 }
 
 .lib-pill.active {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(139, 92, 246, 0.25) 100%);
-    border-color: var(--amber-gold);
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.35) 0%, rgba(6, 182, 212, 0.25) 100%);
+    border-color: var(--violet-primary);
     color: #ffffff;
-    box-shadow: 0 0 16px var(--amber-glow);
+    box-shadow: 0 0 16px rgba(139, 92, 246, 0.4);
 }
 
 .lib-pill-action {
-    background: rgba(139, 92, 246, 0.12);
-    border-color: rgba(139, 92, 246, 0.35);
+    background: rgba(139, 92, 246, 0.15);
+    border-color: rgba(139, 92, 246, 0.4);
     color: #c4b5fd;
+    margin-left: auto;
 }
 
 .lib-pill-action:hover {

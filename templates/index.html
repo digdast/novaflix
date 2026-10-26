@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NovaFlix | Next-Gen Sovereign Media Server</title>
     <meta name="description" content="The next-generation open media streaming platform combining the elegance of Plex, freedom of Jellyfin, and power of Emby.">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=1.1.0">
+
 </head>
 <body>
     <!-- Topbar Navigation -->
@@ -73,26 +74,27 @@
             </div>
         </div>
     </section>
-
-    <!-- Library Filter Pills Bar -->
-    <section class="library-filter-section">
-        <div class="library-filter-wrap">
-            <button class="lib-pill active" id="pillAllMedia" onclick="app.filterByLibrary(null)">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                <span>All Libraries</span>
-            </button>
-            <div id="dynamicLibraryPills" class="dynamic-pills-row"></div>
-            <button class="lib-pill lib-pill-action" onclick="app.openAddMediaModal('scan')" title="Create or Manage Libraries">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                <span>New Library</span>
-            </button>
-        </div>
-    </section>
-
+ 
     <!-- Cinema Media Shelves -->
     <main class="cinema-main-container">
+        <!-- Library Filter Toolbar -->
+        <section class="library-filter-section">
+            <div class="library-filter-wrap">
+                <button class="lib-pill active" id="pillAllMedia" onclick="app.filterByLibrary(null)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    <span>All Libraries</span>
+                </button>
+                <div id="dynamicLibraryPills" class="dynamic-pills-row"></div>
+                <button class="lib-pill lib-pill-action" onclick="app.openAddMediaModal('scan')" title="Create or Manage Libraries">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span>New Library</span>
+                </button>
+            </div>
+        </section>
+
         <!-- Continue Watching Shelf -->
         <section class="media-shelf" id="shelfContinueWatching" style="display: none;">
+
             <div class="shelf-header">
                 <h2 class="shelf-title">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--amber-gold)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
@@ -598,6 +600,7 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <!-- Application Script -->
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=1.1.0"></script>
 </body>
+
 </html>

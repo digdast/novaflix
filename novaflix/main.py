@@ -804,7 +804,7 @@ async def get_install_ps1():
 
 @app.get("/downloads/{filename}")
 async def download_package_file(filename: str):
-    """Direct download for Debian (.deb), portable zip, and packages."""
+    """Direct download for Debian (.deb), portable zip, and packages with forced attachment header."""
     downloads_dir = BASE_DIR / "static" / "downloads"
     target = downloads_dir / filename
 
@@ -822,16 +822,22 @@ async def download_package_file(filename: str):
             tars = list(downloads_dir.glob("*.tar.gz"))
             if tars:
                 target = tars[0]
+        elif filename in ("install.sh", "install.ps1"):
+            target = BASE_DIR / "static" / filename
 
     if target.exists() and target.is_file():
         mime, _ = mimetypes.guess_type(str(target))
         return FileResponse(
             target,
             media_type=mime or "application/octet-stream",
-            filename=target.name
+            filename=target.name,
+            headers={
+                "Content-Disposition": f'attachment; filename="{target.name}"'
+            }
         )
 
     raise HTTPException(status_code=404, detail=f"Download file not found: {filename}")
+
 
 @app.get("/api/downloads")
 async def get_download_variants():
