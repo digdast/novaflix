@@ -103,21 +103,21 @@ pip3 install -r requirements.txt
 
 ```mermaid
 graph TD
-    Client[Browser / Smart TV / Mobile Client] -->|HTTP 206 Range Stream| StreamEngine[Streaming Service]
-    Client -->|REST APIs| APIGateway[FastAPI Gateway :8096]
-    Client -->|WebSocket| SyncPlay[SyncPlay Watch Together]
+    Client["Browser / Smart TV / Mobile Client"] -->|"HTTP 206 Range Stream"| StreamEngine["Streaming Service"]
+    Client -->|"REST APIs"| APIGateway["FastAPI Gateway (:8096)"]
+    Client -->|"WebSocket"| SyncPlay["SyncPlay Watch Together"]
     
-    APIGateway --> Database[(SQLite WAL novaflix.db)]
-    APIGateway --> RemoteService[Remote Access Service]
+    APIGateway --> Database[("SQLite WAL novaflix.db")]
+    APIGateway --> RemoteService["Remote Access Service"]
     
-    RemoteService --> PublicIP[Public WAN Discovery]
-    RemoteService --> CloudflareTunnel[Cloudflare Zero Trust Tunnel]
+    RemoteService --> PublicIP["Public WAN Discovery"]
+    RemoteService --> CloudflareTunnel["Cloudflare Zero Trust Tunnel"]
     
-    StreamEngine --> LocalMedia[(Local Files / Direct Play)]
-    StreamEngine --> RemoteCDN[(Remote Video CDN)]
+    StreamEngine --> LocalMedia[("Local Files / Direct Play")]
+    StreamEngine --> RemoteCDN[("Remote Video CDN")]
     
-    APIGateway --> CinemaUI[Cinema Web Client]
-    APIGateway --> DownloadPortal[Plex-Style Portal :8096/portal]
+    APIGateway --> CinemaUI["Cinema Web Client"]
+    APIGateway --> DownloadPortal["Plex-Style Portal (:8096/portal)"]
 ```
 
 ---
