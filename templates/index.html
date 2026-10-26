@@ -23,8 +23,10 @@
             <li><a class="nav-link active" onclick="location.reload()">Home</a></li>
             <li><a class="nav-link" href="#shelfMovies">Movies</a></li>
             <li><a class="nav-link" href="#shelfShows">TV Shows</a></li>
+            <li><a class="nav-link" id="btnNavAddMedia" style="color: var(--amber-gold); font-weight: 700; cursor: pointer;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -2px; margin-right: 4px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>Add Media</a></li>
+            <li><a class="nav-link" id="btnNavLibraries" style="cursor: pointer;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>Libraries</a></li>
             <li><a class="nav-link" id="btnRemoteStatus">Remote Access</a></li>
-            <li><a class="nav-link" href="/portal" style="color: var(--amber-gold); font-weight: 700;">Downloads & Apps</a></li>
+            <li><a class="nav-link" href="/portal" style="color: #cbd5e1; font-weight: 500;">Downloads & Apps</a></li>
         </ul>
 
         <div class="nav-right-actions">
@@ -124,12 +126,16 @@
                 <div id="detailMeta" style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Meta</div>
                 <p id="detailSynopsis" style="color: #cbd5e1; font-size: 0.95rem; line-height: 1.6; margin-bottom: 20px;">Synopsis</p>
                 <div id="detailCast" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 24px;">Cast</div>
-                <div style="display: flex; gap: 14px;">
+                <div style="display: flex; gap: 14px; align-items: center; flex-wrap: wrap;">
                     <button class="btn-hero-play" id="btnDetailPlay">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                         <span>Start Playback</span>
                     </button>
                     <button class="btn-hero-secondary" onclick="app.closeDetailModal()">Close</button>
+                    <button class="btn-hero-secondary" id="btnDetailDelete" onclick="app.deleteCurrentMedia()" style="border-color: rgba(244, 63, 94, 0.4); color: var(--rose-danger); margin-left: auto;" title="Remove this item from NovaFlix">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        <span>Delete</span>
+                    </button>
                 </div>
                 <div id="detailEpisodeList" style="margin-top: 24px;"></div>
             </div>
@@ -238,6 +244,193 @@
             <button class="btn-hero-play" style="width: 100%; justify-content: center;" onclick="app.closeRemoteModal()">Close</button>
         </div>
     </div>
+
+    <!-- Add Media & Library Manager Modal -->
+    <div class="modal-overlay" id="addMediaModal">
+        <div class="modal-card" style="max-width: 760px; width: 92%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                    <h3 style="font-size: 1.4rem; font-weight: 800; color: #ffffff;">Media &amp; Library Management</h3>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 2px;">Add files, scan local server storage, and manage media libraries</div>
+                </div>
+                <button class="player-close-btn" style="width: 32px; height: 32px;" onclick="app.closeAddMediaModal()">✕</button>
+            </div>
+
+            <!-- Modal Nav Tabs -->
+            <div class="modal-tabs">
+                <button class="modal-tab-btn active" id="tabBtnAddSingle" onclick="app.switchAddMediaTab('single')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span>Add Single Item</span>
+                </button>
+                <button class="modal-tab-btn" id="tabBtnScanStorage" onclick="app.switchAddMediaTab('scan')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                    <span>Scan &amp; Storage Folders</span>
+                </button>
+            </div>
+
+            <!-- Tab 1: Add Single Media Item -->
+            <div class="modal-tab-content active" id="tabContentAddSingle">
+                <form id="formAddMedia" onsubmit="event.preventDefault(); app.submitAddMedia();">
+                    <div class="form-grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Media Type</label>
+                            <select id="addMediaType" class="form-select" onchange="app.onMediaTypeChange()">
+                                <option value="movie">Movie</option>
+                                <option value="show">TV Series</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Library Destination</label>
+                            <select id="addMediaLibrarySelect" class="form-select"></select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Title <span style="color: var(--amber-gold);">*</span></label>
+                        <input type="text" id="addMediaTitle" class="form-input" placeholder="e.g. 12 Strong or 3 Body Problem" required>
+                    </div>
+
+                    <div class="form-grid-3">
+                        <div class="form-group">
+                            <label class="form-label">Release Year</label>
+                            <input type="number" id="addMediaYear" class="form-input" placeholder="2026" min="1900" max="2099">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Rating (0 - 10)</label>
+                            <input type="number" id="addMediaRating" class="form-input" placeholder="8.8" step="0.1" min="0" max="10">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Genre</label>
+                            <input type="text" id="addMediaGenre" class="form-input" placeholder="Action, Sci-Fi">
+                        </div>
+                    </div>
+
+                    <!-- Source Selection -->
+                    <div class="form-group">
+                        <label class="form-label">Local File Path on Server (or HTTP URL)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="addMediaFilePath" class="form-input" placeholder="/data/media/movies/12 Strong (2018)/12 Strong (2018).mp4" style="flex: 1;">
+                            <button type="button" class="btn-hero-secondary" style="padding: 0 16px; white-space: nowrap; font-size: 0.85rem;" onclick="app.openFolderBrowser('addMediaFilePath')">
+                                📂 Browse
+                            </button>
+                        </div>
+                        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">Local paths (e.g. /data/media/...) are streamed via HTTP 206 Direct Play.</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Direct Stream URL (Optional if local file provided)</label>
+                        <input type="url" id="addMediaStreamUrl" class="form-input" placeholder="https://example.com/stream.mp4 or .m3u8">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Poster / Cover Artwork</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="addMediaPoster" class="form-input" placeholder="URL or leave blank for dynamic cinema poster" style="flex: 1;">
+                            <button type="button" class="btn-hero-secondary" style="padding: 0 14px; font-size: 0.82rem; white-space: nowrap;" onclick="app.generatePosterPreview()">
+                                ✨ Generate
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Synopsis / Description</label>
+                        <textarea id="addMediaSynopsis" class="form-textarea" rows="2" placeholder="Brief overview of the media item..."></textarea>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                        <button type="button" class="btn-hero-secondary" onclick="app.closeAddMediaModal()">Cancel</button>
+                        <button type="submit" class="btn-hero-play" id="btnSubmitAddMedia">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                            <span>Add to Library</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tab 2: Scan Storage & Manage Libraries -->
+            <div class="modal-tab-content" id="tabContentScanStorage">
+                <!-- Configured Libraries -->
+                <div style="margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="font-weight: 700; color: #ffffff;">Configured Library Directories</span>
+                        <span id="scanStatusBadge" class="rating-badge" style="font-size: 0.75rem;">IDLE</span>
+                    </div>
+                    <div id="librariesListContainer" class="libraries-list-wrap">
+                        <div style="color: var(--text-muted); padding: 12px;">Loading libraries...</div>
+                    </div>
+                </div>
+
+                <!-- Quick Presets -->
+                <div style="margin-bottom: 24px; padding: 16px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 10px;">Quick Server Directory Presets:</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <button type="button" class="btn-tag" onclick="app.quickAddLibrary('Movies', 'movies', '/data/media/movies')">+ /data/media/movies</button>
+                        <button type="button" class="btn-tag" onclick="app.quickAddLibrary('TV Shows', 'tvshows', '/data/media/tv-shows')">+ /data/media/tv-shows</button>
+                        <button type="button" class="btn-tag" onclick="app.quickAddLibrary('Animated Movies', 'movies', '/data/media/animated-movies')">+ /data/media/animated-movies</button>
+                        <button type="button" class="btn-tag" onclick="app.quickAddLibrary('Animated TV', 'tvshows', '/data/media/animated-tv')">+ /data/media/animated-tv</button>
+                    </div>
+                </div>
+
+                <!-- Scan Controls -->
+                <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+                    <button class="btn-hero-play" style="flex: 1; justify-content: center;" id="btnScanAllLibraries" onclick="app.startLibraryScan()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                        <span>Scan All Libraries Now</span>
+                    </button>
+                </div>
+
+                <!-- Scan Progress Box -->
+                <div id="scanProgressCard" style="display: none; padding: 16px; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: var(--radius-md); margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span id="scanProgressText" style="font-size: 0.9rem; font-weight: 600; color: #ffffff;">Scanning media files...</span>
+                        <div class="spinner-small"></div>
+                    </div>
+                    <div class="progress-bar-wrap" style="height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 4px; overflow: hidden; margin-top: 8px;">
+                        <div id="scanProgressBar" class="progress-bar-fill" style="width: 100%; height: 100%; background: linear-gradient(90deg, var(--amber-gold), var(--violet-primary));"></div>
+                    </div>
+                    <div id="scanStatsDisplay" style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); margin-top: 10px;">
+                        Scanned: 0 | Added: 0 | Skipped: 0
+                    </div>
+                </div>
+
+                <!-- Add New Library Folder Form -->
+                <div style="border-top: 1px solid var(--border-subtle); padding-top: 18px;">
+                    <span style="font-size: 0.9rem; font-weight: 700; color: #ffffff;">Add Custom Library Directory</span>
+                    <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+                        <input type="text" id="newLibName" class="form-input" placeholder="Library Name (e.g. 4K Movies)" style="flex: 1; min-width: 140px;">
+                        <select id="newLibType" class="form-select" style="width: 130px;">
+                            <option value="movies">Movies</option>
+                            <option value="tvshows">TV Series</option>
+                        </select>
+                        <input type="text" id="newLibPath" class="form-input" placeholder="/data/media/..." style="flex: 2; min-width: 180px;">
+                        <button type="button" class="btn-hero-secondary" style="padding: 0 14px; font-size: 0.85rem;" onclick="app.openFolderBrowser('newLibPath')">📂</button>
+                        <button type="button" class="btn-hero-play" style="padding: 0 18px; font-size: 0.85rem;" onclick="app.createLibrary()">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Server Filesystem Browser Modal -->
+    <div class="modal-overlay" id="folderBrowserModal" style="z-index: 1200;">
+        <div class="modal-card" style="max-width: 620px; width: 92%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h4 style="font-size: 1.15rem; font-weight: 700; color: #ffffff;">Server Directory Browser</h4>
+                <button class="player-close-btn" style="width: 28px; height: 28px;" onclick="app.closeFolderBrowser()">✕</button>
+            </div>
+            <div style="font-size: 0.82rem; font-family: var(--font-mono); color: var(--cyan-accent); background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 14px; word-break: break-all;" id="browserCurrentPath">
+                /data/media
+            </div>
+            <div class="browser-entries-list" id="browserEntriesList" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 4px;"></div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 18px;">
+                <button type="button" class="btn-hero-secondary" onclick="app.browseParentDir()" id="btnBrowserParent">⬆ Up One Level</button>
+                <button type="button" class="btn-hero-play" onclick="app.selectCurrentBrowserPath()">Select This Directory</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
 
     <!-- Application Script -->
     <script src="/static/js/app.js"></script>

@@ -71,7 +71,7 @@ class StreamService:
         file_size = path.stat().st_size
         mime_type, _ = mimetypes.guess_type(str(path))
         if not mime_type:
-            mime_type = "video/mp4"
+            mime_type = "video/x-matroska" if path.suffix.lower() == ".mkv" else "video/mp4"
 
         range_header = request.headers.get("range")
         if range_header:
@@ -82,6 +82,7 @@ class StreamService:
                 "Accept-Ranges": "bytes",
                 "Content-Length": str(content_length),
                 "Content-Type": mime_type,
+                "Content-Disposition": f'inline; filename="{path.name}"',
                 "Cache-Control": "no-cache",
             }
             return StreamingResponse(
@@ -94,6 +95,7 @@ class StreamService:
                 "Accept-Ranges": "bytes",
                 "Content-Length": str(file_size),
                 "Content-Type": mime_type,
+                "Content-Disposition": f'inline; filename="{path.name}"',
             }
             return StreamingResponse(
                 range_stream_generator(path, 0, file_size - 1),

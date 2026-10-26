@@ -142,10 +142,19 @@ class Database:
 
             # Seed Default Libraries if empty
             cursor = conn.execute("SELECT COUNT(*) FROM libraries")
+            now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            default_movies_path = "/data/media/movies" if Path("/data/media/movies").exists() else "C:/Media/Movies"
+            default_tv_path = "/data/media/tv-shows" if Path("/data/media/tv-shows").exists() else "C:/Media/TV"
+
             if cursor.fetchone()[0] == 0:
-                now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-                conn.execute("INSERT INTO libraries (name, type, path, created_at) VALUES ('Movies', 'movies', 'C:/Media/Movies', ?)", (now_str,))
-                conn.execute("INSERT INTO libraries (name, type, path, created_at) VALUES ('TV Shows', 'tvshows', 'C:/Media/TV', ?)", (now_str,))
+                conn.execute("INSERT INTO libraries (name, type, path, created_at) VALUES ('Movies', 'movies', ?, ?)", (default_movies_path, now_str))
+                conn.execute("INSERT INTO libraries (name, type, path, created_at) VALUES ('TV Shows', 'tvshows', ?, ?)", (default_tv_path, now_str))
+            else:
+                # If existing libraries point to placeholder C:/ paths and /data/media exists, migrate them
+                if Path("/data/media/movies").exists():
+                    conn.execute("UPDATE libraries SET path = '/data/media/movies' WHERE type = 'movies' AND path LIKE 'C:/%'")
+                if Path("/data/media/tv-shows").exists():
+                    conn.execute("UPDATE libraries SET path = '/data/media/tv-shows' WHERE type = 'tvshows' AND path LIKE 'C:/%'")
 
             # Seed Curated Demo Media if empty
             cursor = conn.execute("SELECT COUNT(*) FROM media_items")
@@ -336,3 +345,72 @@ class Database:
             """, (username, pw_hash, 1 if is_admin else 0, color, max_age_rating, now_str))
             conn.commit()
             return cursor.lastrowid
+
+    # ------------------ Library & Media Management ------------------
+
+    def get_libraries(self) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            rows = conn.execute("""
+            SELECT l.*, 
+                   (SELECT COUNT(*) FROM media_items m WHERE m.library_id = l.id) as item_count
+            FROM libraries l
+            ORDER BY l.id ASC
+            """).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_library_by_id(self, lib_id: int) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            row = conn.execute("SELECT * FROM libraries WHERE id = ?", (lib_id,)).fetchone()
+            return dict(row) if row else None
+
+    def add_library(self, name: str, lib_type: str, path: str) -> int:
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                "INSERT INTO libraries (name, type, path, created_at) VALUES (?, ?, ?, ?)",
+                (name, lib_type, path, now_str)
+            )
+            conn.commit()
+            return cursor.lastrowid
+
+    def update_library(self, lib_id: int, name: str, lib_type: str, path: str):
+        with self.get_connection() as conn:
+            conn.execute(
+                "UPDATE libraries SET name = ?, type = ?, path = ? WHERE id = ?",
+                (name, lib_type, path, lib_id)
+            )
+            conn.commit()
+
+    def delete_library(self, lib_id: int, delete_media: bool = False):
+        with self.get_connection() as conn:
+            if delete_media:
+                conn.execute("DELETE FROM media_items WHERE library_id = ?", (lib_id,))
+            conn.execute("DELETE FROM libraries WHERE id = ?", (lib_id,))
+            conn.commit()
+
+    def delete_media_item(self, item_id: int):
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM media_items WHERE parent_id = ?", (item_id,))
+            conn.execute("DELETE FROM media_items WHERE id = ?", (item_id,))
+            conn.execute("DELETE FROM watch_progress WHERE media_id = ?", (item_id,))
+            conn.execute("DELETE FROM watchlist WHERE media_id = ?", (item_id,))
+            conn.commit()
+
+    def get_media_by_filepath(self, file_path: str) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            row = conn.execute("SELECT * FROM media_items WHERE file_path = ?", (file_path,)).fetchone()
+            return dict(row) if row else None
+
+    def get_show_by_title(self, title: str) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            row = conn.execute("SELECT * FROM media_items WHERE type = 'show' AND LOWER(title) = LOWER(?)", (title,)).fetchone()
+            return dict(row) if row else None
+
+    def update_media_item(self, item_id: int, fields: Dict[str, Any]):
+        if not fields:
+            return
+        set_clause = ", ".join([f"{k} = :{k}" for k in fields.keys()])
+        with self.get_connection() as conn:
+            conn.execute(f"UPDATE media_items SET {set_clause} WHERE id = :_id", {**fields, "_id": item_id})
+            conn.commit()
+

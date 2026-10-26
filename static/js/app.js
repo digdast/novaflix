@@ -84,6 +84,16 @@ class NovaFlixApp {
         if (btnRemote) {
             btnRemote.addEventListener('click', () => this.openRemoteModal());
         }
+
+        // Add Media & Library Nav Triggers
+        const btnAddMedia = document.getElementById('btnNavAddMedia');
+        if (btnAddMedia) {
+            btnAddMedia.addEventListener('click', () => this.openAddMediaModal('single'));
+        }
+        const btnLibraries = document.getElementById('btnNavLibraries');
+        if (btnLibraries) {
+            btnLibraries.addEventListener('click', () => this.openAddMediaModal('scan'));
+        }
     }
 
     // -------------------------------------------------------------
@@ -501,6 +511,435 @@ class NovaFlixApp {
     closeRemoteModal() {
         const modal = document.getElementById('remoteAccessModal');
         if (modal) modal.classList.remove('active');
+    }
+
+    // -------------------------------------------------------------
+    // Add Media & Library Management
+    // -------------------------------------------------------------
+
+    openAddMediaModal(tab = 'single') {
+        const modal = document.getElementById('addMediaModal');
+        if (!modal) return;
+        modal.classList.add('active');
+        this.switchAddMediaTab(tab);
+        this.loadLibraries();
+    }
+
+    closeAddMediaModal() {
+        const modal = document.getElementById('addMediaModal');
+        if (modal) modal.classList.remove('active');
+    }
+
+    switchAddMediaTab(tab) {
+        const tabSingle = document.getElementById('tabBtnAddSingle');
+        const tabScan = document.getElementById('tabBtnScanStorage');
+        const contentSingle = document.getElementById('tabContentAddSingle');
+        const contentScan = document.getElementById('tabContentScanStorage');
+
+        if (tab === 'single') {
+            if (tabSingle) tabSingle.classList.add('active');
+            if (tabScan) tabScan.classList.remove('active');
+            if (contentSingle) contentSingle.classList.add('active');
+            if (contentScan) contentScan.classList.remove('active');
+        } else {
+            if (tabSingle) tabSingle.classList.remove('active');
+            if (tabScan) tabScan.classList.add('active');
+            if (contentSingle) contentSingle.classList.remove('active');
+            if (contentScan) contentScan.classList.add('active');
+            this.loadLibraries();
+        }
+    }
+
+    onMediaTypeChange() {
+        const type = document.getElementById('addMediaType')?.value || 'movie';
+        const libSelect = document.getElementById('addMediaLibrarySelect');
+        if (!libSelect) return;
+        for (let opt of libSelect.options) {
+            const optType = opt.getAttribute('data-type');
+            if ((type === 'movie' && optType === 'movies') || (type === 'show' && optType === 'tvshows')) {
+                libSelect.value = opt.value;
+                break;
+            }
+        }
+    }
+
+    generatePosterPreview() {
+        const title = document.getElementById('addMediaTitle')?.value.trim();
+        const year = document.getElementById('addMediaYear')?.value.trim() || '';
+        const genre = document.getElementById('addMediaGenre')?.value.trim() || 'Cinema';
+        if (!title) {
+            this.showToast('Please enter a title first', 'error');
+            return;
+        }
+        const genUrl = `/api/media/poster/generated?title=${encodeURIComponent(title)}&year=${encodeURIComponent(year)}&genre=${encodeURIComponent(genre)}`;
+        const posterInput = document.getElementById('addMediaPoster');
+        if (posterInput) posterInput.value = genUrl;
+        this.showToast('Generated dynamic cinema poster!', 'info');
+    }
+
+    async submitAddMedia() {
+        const title = document.getElementById('addMediaTitle')?.value.trim();
+        const type = document.getElementById('addMediaType')?.value || 'movie';
+        const year = parseInt(document.getElementById('addMediaYear')?.value) || 2026;
+        const rating = parseFloat(document.getElementById('addMediaRating')?.value) || 8.5;
+        const genre = document.getElementById('addMediaGenre')?.value.trim() || 'Cinema';
+        const filePath = document.getElementById('addMediaFilePath')?.value.trim() || '';
+        const streamUrl = document.getElementById('addMediaStreamUrl')?.value.trim() || '';
+        const poster = document.getElementById('addMediaPoster')?.value.trim() || '';
+        const synopsis = document.getElementById('addMediaSynopsis')?.value.trim() || '';
+        const libSelect = document.getElementById('addMediaLibrarySelect');
+        const libraryId = libSelect ? parseInt(libSelect.value) : 1;
+
+        if (!title) {
+            this.showToast('Title is required', 'error');
+            return;
+        }
+        if (!filePath && !streamUrl) {
+            this.showToast('Provide either a local file path or stream URL', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btnSubmitAddMedia');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/media/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title,
+                    type,
+                    year,
+                    rating,
+                    genre,
+                    file_path: filePath,
+                    stream_url: streamUrl,
+                    poster,
+                    synopsis,
+                    library_id: libraryId
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                this.showToast(`✨ Added "${title}" to your library!`, 'success');
+                this.closeAddMediaModal();
+                document.getElementById('formAddMedia')?.reset();
+                await this.loadCatalog();
+            } else {
+                this.showToast(data.detail || 'Failed to add media item', 'error');
+            }
+        } catch (e) {
+            this.showToast(`Error: ${e.message}`, 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async deleteCurrentMedia() {
+        if (!this.currentMedia || !this.currentMedia.id) return;
+        const confirmDelete = confirm(`Are you sure you want to remove "${this.currentMedia.title}" from NovaFlix?`);
+        if (!confirmDelete) return;
+
+        try {
+            const res = await fetch(`/api/media/item/${this.currentMedia.id}`, { method: 'DELETE' });
+            if (res.ok) {
+                this.showToast(`Removed "${this.currentMedia.title}" from library`, 'info');
+                this.closeDetailModal();
+                await this.loadCatalog();
+            } else {
+                this.showToast('Failed to delete media item', 'error');
+            }
+        } catch (e) {
+            this.showToast(`Delete failed: ${e.message}`, 'error');
+        }
+    }
+
+    async loadLibraries() {
+        const container = document.getElementById('librariesListContainer');
+        const libSelect = document.getElementById('addMediaLibrarySelect');
+
+        try {
+            const res = await fetch('/api/libraries');
+            const libs = await res.json();
+
+            if (libSelect) {
+                libSelect.innerHTML = libs.map(l => `
+                    <option value="${l.id}" data-type="${l.type}">${l.name} (${l.type})</option>
+                `).join('');
+            }
+
+            if (container) {
+                if (!libs || libs.length === 0) {
+                    container.innerHTML = '<div style="color: var(--text-muted); padding: 12px;">No libraries configured yet. Add one below.</div>';
+                    return;
+                }
+
+                container.innerHTML = libs.map(l => `
+                    <div class="library-card-item">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-weight: 700; color: #ffffff;">${l.name}</span>
+                                <span class="rating-badge" style="font-size: 0.7rem;">${l.type.toUpperCase()}</span>
+                                <span style="font-size: 0.8rem; color: var(--amber-gold); font-family: var(--font-mono);">${l.item_count} items</span>
+                            </div>
+                            <div style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); margin-top: 4px;">${l.path}</div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn-tag" style="background: rgba(245, 158, 11, 0.15); color: var(--amber-gold); border-color: rgba(245, 158, 11, 0.3);" onclick="app.startLibraryScan(${l.id})">
+                                ↻ Scan
+                            </button>
+                            <button class="btn-tag" style="background: rgba(244, 63, 94, 0.1); color: var(--rose-danger); border-color: rgba(244, 63, 94, 0.25);" onclick="app.deleteLibrary(${l.id}, '${l.name}')">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } catch (e) {
+            console.error('Failed to load libraries', e);
+        }
+    }
+
+    async quickAddLibrary(name, type, path) {
+        try {
+            const res = await fetch('/api/libraries', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, type, path })
+            });
+            if (res.ok) {
+                this.showToast(`Configured library: ${name}`, 'success');
+                await this.loadLibraries();
+                this.startLibraryScan();
+            } else {
+                const data = await res.json();
+                this.showToast(data.detail || 'Could not add preset', 'error');
+            }
+        } catch (e) {
+            this.showToast(`Error: ${e.message}`, 'error');
+        }
+    }
+
+    async createLibrary() {
+        const name = document.getElementById('newLibName')?.value.trim();
+        const type = document.getElementById('newLibType')?.value || 'movies';
+        const path = document.getElementById('newLibPath')?.value.trim();
+
+        if (!name || !path) {
+            this.showToast('Please provide both Library Name and Path', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/libraries', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, type, path })
+            });
+            if (res.ok) {
+                this.showToast(`Added library "${name}"`, 'success');
+                document.getElementById('newLibName').value = '';
+                document.getElementById('newLibPath').value = '';
+                await this.loadLibraries();
+            } else {
+                const data = await res.json();
+                this.showToast(data.detail || 'Failed to create library', 'error');
+            }
+        } catch (e) {
+            this.showToast(`Error: ${e.message}`, 'error');
+        }
+    }
+
+    async deleteLibrary(libId, name) {
+        if (!confirm(`Remove library "${name}"? Existing media records will remain.`)) return;
+        try {
+            const res = await fetch(`/api/libraries/${libId}`, { method: 'DELETE' });
+            if (res.ok) {
+                this.showToast(`Library "${name}" deleted`, 'info');
+                await this.loadLibraries();
+            }
+        } catch (e) {
+            this.showToast(`Error: ${e.message}`, 'error');
+        }
+    }
+
+    async startLibraryScan(libId = null) {
+        const card = document.getElementById('scanProgressCard');
+        const badge = document.getElementById('scanStatusBadge');
+        const stats = document.getElementById('scanStatsDisplay');
+        const btn = document.getElementById('btnScanAllLibraries');
+
+        if (card) card.style.display = 'block';
+        if (badge) { badge.innerText = 'SCANNING'; badge.style.color = 'var(--amber-gold)'; }
+        if (btn) btn.disabled = true;
+
+        this.showToast('🚀 Scanning media directories...', 'info');
+
+        try {
+            const res = await fetch('/api/libraries/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ library_id: libId })
+            });
+
+            const data = await res.json();
+            let totalAdded = 0;
+            let totalScanned = 0;
+
+            if (data.results) {
+                data.results.forEach(r => {
+                    totalAdded += (r.added || 0);
+                    totalScanned += (r.scanned || 0);
+                });
+            }
+
+            if (stats) {
+                stats.innerText = `Scan Complete: Scanned ${totalScanned} files • Discovered ${totalAdded} new items`;
+            }
+
+            this.showToast(`🎉 Scan complete! Added ${totalAdded} new items.`, 'success');
+            await this.loadCatalog();
+            await this.loadLibraries();
+        } catch (e) {
+            this.showToast(`Scan error: ${e.message}`, 'error');
+        } finally {
+            if (badge) { badge.innerText = 'IDLE'; badge.style.color = '#ffffff'; }
+            if (btn) btn.disabled = false;
+            setTimeout(() => {
+                if (card) card.style.display = 'none';
+            }, 4000);
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Filesystem Directory Browser
+    // -------------------------------------------------------------
+
+    openFolderBrowser(targetInputId) {
+        this.targetBrowserInputId = targetInputId;
+        const modal = document.getElementById('folderBrowserModal');
+        if (modal) modal.classList.add('active');
+        const initialVal = document.getElementById(targetInputId)?.value.trim();
+        this.browsePath(initialVal || '/data/media');
+    }
+
+    closeFolderBrowser() {
+        const modal = document.getElementById('folderBrowserModal');
+        if (modal) modal.classList.remove('active');
+    }
+
+    async browsePath(path) {
+        const list = document.getElementById('browserEntriesList');
+        const currentPathEl = document.getElementById('browserCurrentPath');
+        const btnParent = document.getElementById('btnBrowserParent');
+
+        if (list) list.innerHTML = '<div style="color: var(--text-muted); padding: 8px;">Loading server directory...</div>';
+
+        try {
+            const res = await fetch(`/api/filesystem/browse?path=${encodeURIComponent(path || '')}`);
+            const data = await res.json();
+
+            this.currentBrowserPath = data.current_path;
+            this.currentBrowserParent = data.parent_path;
+
+            if (currentPathEl) currentPathEl.innerText = data.current_path;
+            if (btnParent) btnParent.disabled = !data.parent_path;
+
+            if (list) {
+                let html = '';
+                if (data.suggested_paths && data.suggested_paths.length > 0 && (!path || path === '/data/media' || path === '/data')) {
+                    html += `<div style="font-size: 0.75rem; color: var(--amber-gold); font-weight: 700; margin-bottom: 4px;">FAST SHORTCUTS:</div>`;
+                    data.suggested_paths.forEach(s => {
+                        html += `
+                            <div class="browser-entry-item is-dir" onclick="app.browsePath('${s.path}')">
+                                <span>⭐ ${s.name}</span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">${s.type}</span>
+                            </div>
+                        `;
+                    });
+                    html += `<div style="height: 8px;"></div>`;
+                }
+
+                data.directories.forEach(d => {
+                    const subPath = data.current_path.replace(/\/$/, '') + '/' + d;
+                    html += `
+                        <div class="browser-entry-item is-dir" onclick="app.browsePath('${subPath.replace(/'/g, "\\'")}')">
+                            <span>📁 ${d}</span>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">folder</span>
+                        </div>
+                    `;
+                });
+
+                data.video_files.forEach(f => {
+                    const filePath = data.current_path.replace(/\/$/, '') + '/' + f;
+                    html += `
+                        <div class="browser-entry-item is-file" onclick="app.selectBrowserItem('${filePath.replace(/'/g, "\\'")}')">
+                            <span>🎬 ${f}</span>
+                            <span style="font-size: 0.75rem; color: var(--cyan-accent);">select</span>
+                        </div>
+                    `;
+                });
+
+                if (data.directories.length === 0 && data.video_files.length === 0) {
+                    html += '<div style="color: var(--text-muted); padding: 8px;">(Folder is empty)</div>';
+                }
+
+                list.innerHTML = html;
+            }
+        } catch (e) {
+            if (list) list.innerHTML = `<div style="color: var(--rose-danger); padding: 8px;">Failed to browse: ${e.message}</div>`;
+        }
+    }
+
+    browseParentDir() {
+        if (this.currentBrowserParent) {
+            this.browsePath(this.currentBrowserParent);
+        }
+    }
+
+    selectCurrentBrowserPath() {
+        if (this.targetBrowserInputId && this.currentBrowserPath) {
+            const input = document.getElementById(this.targetBrowserInputId);
+            if (input) input.value = this.currentBrowserPath;
+        }
+        this.closeFolderBrowser();
+    }
+
+    selectBrowserItem(itemPath) {
+        if (this.targetBrowserInputId) {
+            const input = document.getElementById(this.targetBrowserInputId);
+            if (input) input.value = itemPath;
+        }
+        this.closeFolderBrowser();
+    }
+
+    // -------------------------------------------------------------
+    // Toast Notification System
+    // -------------------------------------------------------------
+
+    showToast(message, type = 'info', duration = 3500) {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = `toast-message toast-${type}`;
+        
+        let icon = 'ℹ️';
+        if (type === 'success') icon = '✓';
+        if (type === 'error') icon = '✕';
+
+        toast.innerHTML = `
+            <span style="font-weight: 800; font-size: 1rem;">${icon}</span>
+            <span>${message}</span>
+        `;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
     }
 }
 
