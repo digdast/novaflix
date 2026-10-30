@@ -21,7 +21,7 @@
 
 *Cinematic media library catalog: high-resolution movie & TV backdrops, real-time metadata, and instant streaming player.*
 
-![NovaFlix Streaming Catalog](docs/screenshots/novaflix-streaming-catalog.png)
+![NovaFlix Streaming Catalog]
 
 ---
 
